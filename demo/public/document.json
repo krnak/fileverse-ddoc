@@ -1,0 +1,14 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": { "level": 1 },
+      "content": [{ "type": "text", "text": "Welcome to DDoc" }]
+    },
+    {
+      "type": "paragraph",
+      "content": [{ "type": "text", "text": "Start editing this document. Your changes will be saved automatically." }]
+    }
+  ]
+}
