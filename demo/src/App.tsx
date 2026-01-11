@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import DdocEditor from '../../package/ddoc-editor';
 import { JSONContent } from '@tiptap/react';
 import {
@@ -17,20 +18,19 @@ import { IComment } from '../../package/extensions/comment';
 import { fromUint8Array } from 'js-base64';
 import { crypto as cryptoUtils } from './crypto';
 import { collabStore } from './storage/collab-store';
-import { documentStore } from './storage/document-store';
+import { gateApi } from './storage/gate-api';
 import { DocumentStylingPanel } from './DocumentStylingPanel';
 import { DocumentStyling, ICollaborationConfig } from '../../package/types';
 import { getKeyFromURLParams } from './utils';
 
 function App() {
+  const { uuid } = useParams<{ uuid: string }>();
   const [enableCollaboration, setEnableCollaboration] = useState(false);
   const [username, setUsername] = useState('username');
   const [title, setTitle] = useState('Untitled');
 
   // Document persistence state
-  const [initialContent, setInitialContent] = useState<JSONContent | null>(
-    null,
-  );
+  const [initialContent, setInitialContent] = useState<JSONContent | null>(null);
   const [isDocumentLoading, setIsDocumentLoading] = useState(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -158,63 +158,58 @@ function App() {
     }
   }, []);
 
-  // Load document on mount
+  // Load document from gate API on mount
   useEffect(() => {
+    if (!uuid) return;
+
     const loadDocument = async () => {
       setIsDocumentLoading(true);
-      const content = await documentStore.load();
-      if (content) {
-        setInitialContent(content);
+      try {
+        const content = await gateApi.load(uuid);
+        if (content) {
+          setInitialContent(content);
+        }
+      } catch (e) {
+        console.error('Failed to load document:', e);
+        toast({
+          title: 'Failed to load document',
+          variant: 'danger',
+          hasIcon: true,
+        });
+      } finally {
+        setIsDocumentLoading(false);
       }
-      setIsDocumentLoading(false);
     };
+
     loadDocument();
-  }, []);
+  }, [uuid]);
 
   // Debounced save handler
   const handleDocumentChange = useCallback(
     (content: JSONContent) => {
+      if (!uuid) return;
+
       // Clear any pending save
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+
       // Debounce save by 1 second
-      saveTimeoutRef.current = setTimeout(() => {
-        documentStore.save(content);
-        console.log('Document saved to localStorage');
+      saveTimeoutRef.current = setTimeout(async () => {
+        const success = await gateApi.save(uuid, content);
+        if (success) {
+          console.log('Document saved');
+        } else {
+          toast({
+            title: 'Failed to save document',
+            variant: 'danger',
+            hasIcon: true,
+          });
+        }
       }, 1000);
     },
-    [],
+    [uuid],
   );
-
-  // Export document to file
-  const handleExportDocument = useCallback(() => {
-    const content = editorRef.current?.getEditor()?.getJSON();
-    if (content) {
-      documentStore.exportToFile(content, `${title || 'document'}.json`);
-      toast({
-        title: 'Document exported',
-        variant: 'success',
-        hasIcon: true,
-      });
-    }
-  }, [title]);
-
-  // Import document from file
-  const handleImportDocument = useCallback(async () => {
-    const content = await documentStore.importFromFile();
-    if (content) {
-      setInitialContent(content);
-      documentStore.save(content);
-      toast({
-        title: 'Document imported',
-        variant: 'success',
-        hasIcon: true,
-      });
-      // Force re-render by toggling a key or reloading
-      window.location.reload();
-    }
-  }, []);
 
   const onToggleCollaboration = async () => {
     const name = prompt('Whats your username');
@@ -282,7 +277,7 @@ function App() {
             icon="BadgeCheck"
             className="h-6 rounded !border !color-border-default color-text-secondary text-[12px] font-normal hidden xl:flex"
           >
-            Auto-saved to localStorage
+            Auto-saved
           </Tag>
           <div className="w-6 h-6 rounded color-bg-secondary flex justify-center items-center border color-border-default xl:hidden">
             <LucideIcon
@@ -358,22 +353,6 @@ function App() {
                     <LucideIcon name="Palette" size="sm" />
                     Styling
                   </Button>
-                  <Button
-                    variant={'ghost'}
-                    onClick={handleExportDocument}
-                    className="flex justify-start gap-2"
-                  >
-                    <LucideIcon name="Download" size="sm" />
-                    Export
-                  </Button>
-                  <Button
-                    variant={'ghost'}
-                    onClick={handleImportDocument}
-                    className="flex justify-start gap-2"
-                  >
-                    <LucideIcon name="Upload" size="sm" />
-                    Import
-                  </Button>
                 </div>
               }
             />
@@ -405,18 +384,6 @@ function App() {
                 icon="Palette"
                 size="md"
                 onClick={() => setShowStylingControls(!showStylingControls)}
-              />
-              <IconButton
-                variant={'ghost'}
-                icon="Download"
-                size="md"
-                onClick={handleExportDocument}
-              />
-              <IconButton
-                variant={'ghost'}
-                icon="Upload"
-                size="md"
-                onClick={handleImportDocument}
               />
             </>
           )}
