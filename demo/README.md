@@ -63,4 +63,16 @@ Documents are stored as TipTap JSONContent:
 
 ### Authentication
 
-The gate server uses cookie-based authentication. Navigate to `http://localhost:8080` in your browser to log in with the access token before using the demo.
+The gate server uses cookie-based authentication. When you first open the demo, an authentication overlay will appear prompting for the access token.
+
+The access token is displayed in the gate server console on startup:
+
+```
+INFO  ========================================
+INFO          Oxigraph Gate Starting
+INFO  ========================================
+INFO  Access Token:  a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+INFO  ========================================
+```
+
+After successful authentication, a session cookie is set that persists for 3 months.
