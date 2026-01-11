@@ -1,6 +1,6 @@
 import { JSONContent } from '@tiptap/react';
 
-const GATE_BASE_URL = 'http://localhost:8080';
+const GATE_BASE_URL = 'https://local.dev';
 
 interface UploadResponse {
   success: boolean;

@@ -6,16 +6,21 @@ import App from './App.tsx';
 import { NewDocument } from './routes/NewDocument.tsx';
 import { AuthProvider } from './components/AuthOverlay.tsx';
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: '/document/new',
+      element: <NewDocument />,
+    },
+    {
+      path: '/document/:uuid',
+      element: <App />,
+    },
+  ],
   {
-    path: '/',
-    element: <NewDocument />,
+    basename: '/ddocs',
   },
-  {
-    path: '/document/:uuid',
-    element: <App />,
-  },
-]);
+);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

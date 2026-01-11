@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 
-const GATE_BASE_URL = 'http://localhost:8080';
+const GATE_BASE_URL = 'https://local.dev';
 
 interface AuthContextType {
   isAuthenticated: boolean;
