@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gateApi } from '../storage/gate-api';
 
+const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
+
 const DEFAULT_DOCUMENT = {
   type: 'doc',
   content: [
@@ -35,7 +37,7 @@ export function NewDocument() {
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-red-500">Error: {error}</p>
         <p className="text-sm text-gray-500">
-          Make sure the gate server is running at localhost:8080
+          Make sure the gate server is running at {GATE_BASE_URL}
         </p>
         <button
           onClick={() => window.location.reload()}

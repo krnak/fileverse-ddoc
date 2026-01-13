@@ -18,7 +18,7 @@ The demo uses a file storage backend via [oxigraph-gate](https://github.com/krna
 
 ### Prerequisites
 
-Start the gate server at `localhost:8080`:
+Start the gate server (URL configured via `VITE_GATE_BASE_URL` in `.env`):
 
 ```bash
 # Start oxigraph first
