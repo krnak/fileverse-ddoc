@@ -1,6 +1,9 @@
 import { JSONContent } from '@tiptap/react';
 
-const GATE_BASE_URL = 'https://local.dev';
+const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
+
+// UUID of the /upload folder in the filesystem
+const UPLOAD_FOLDER_UUID = 'urn:uuid:72cec723-a40d-4f37-af4a-e664e66ecbe3';
 
 interface UploadResponse {
   success: boolean;
@@ -8,6 +11,33 @@ interface UploadResponse {
 }
 
 export const gateApi = {
+  /**
+   * Add a file to the upload folder via SPARQL UPDATE
+   */
+  async addToUploadFolder(fileUuid: string): Promise<void> {
+    const sparqlUpdate = `
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      INSERT DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${UPLOAD_FOLDER_UUID}> posix:includes <urn:uuid:${fileUuid}> .
+        }
+      }
+    `;
+
+    const response = await fetch(`${GATE_BASE_URL}/update`, {
+      method: 'POST',
+      body: sparqlUpdate,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/sparql-update',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to add file to upload folder: ${response.status} ${response.statusText}`);
+    }
+  },
+
   /**
    * Upload a new document and get its UUID
    */
@@ -40,7 +70,12 @@ export const gateApi = {
       throw new Error('Upload failed: No file returned');
     }
 
-    return data.files[0].uuid;
+    const uuid = data.files[0].uuid;
+
+    // Add the new file to the upload folder
+    await this.addToUploadFolder(uuid);
+
+    return uuid;
   },
 
   /**

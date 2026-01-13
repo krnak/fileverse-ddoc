@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [react()],
   base: '/ddocs/',
   server: {
-    allowedHosts: ['local.dev'],
+    allowedHosts: true,
   },
 })

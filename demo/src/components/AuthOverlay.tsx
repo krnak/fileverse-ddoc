@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 
-const GATE_BASE_URL = 'https://local.dev';
+const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
 
 interface AuthContextType {
   isAuthenticated: boolean;
