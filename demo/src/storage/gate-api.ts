@@ -20,9 +20,9 @@ export const gateApi = {
     });
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', file);
 
-    const response = await fetch(`${GATE_BASE_URL}/upload`, {
+    const response = await fetch(`${GATE_BASE_URL}/res`, {
       method: 'POST',
       body: formData,
       credentials: 'include', // Include cookies for auth

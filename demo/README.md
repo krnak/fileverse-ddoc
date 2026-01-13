@@ -41,7 +41,7 @@ The demo communicates with the gate server using these endpoints:
 
 | Action | Method | Endpoint | Description |
 |--------|--------|----------|-------------|
-| Create | POST | `/upload` | Upload new document (multipart/form-data), returns `{uuid}` |
+| Create | POST | `/res` | Upload new document (multipart/form-data), returns `{success, files: [{filename, uuid}]}` |
 | Load | GET | `/res/{uuid}` | Download document content by UUID |
 | Save | PUT | `/res/{uuid}` | Replace document content (auto-save with 1s debounce) |
 
