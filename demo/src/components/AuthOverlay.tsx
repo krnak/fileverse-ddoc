@@ -8,6 +8,23 @@ interface AuthContextType {
   checkAuth: () => Promise<boolean>;
 }
 
+/**
+ * Extracts accessToken from URL and removes it from the browser's address bar
+ */
+function extractAndStripAccessToken(): string | null {
+  const url = new URL(window.location.href);
+  const accessToken = url.searchParams.get('accessToken');
+
+  if (accessToken) {
+    // Remove the accessToken from URL
+    url.searchParams.delete('accessToken');
+    // Replace current URL without the token (doesn't trigger navigation)
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  return accessToken;
+}
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function useAuth() {
@@ -59,9 +76,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const loginWithToken = async (accessToken: string): Promise<boolean> => {
+    try {
+      const formData = new URLSearchParams();
+      formData.append('token', accessToken);
+
+      const response = await fetch(`${GATE_BASE_URL}/gate/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
+
+      if (response.ok || response.redirected) {
+        setIsAuthenticated(true);
+        setShowOverlay(false);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Token login failed:', e);
+      return false;
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       setIsLoading(true);
+
+      // Check for accessToken in URL and strip it
+      const urlToken = extractAndStripAccessToken();
+
+      if (urlToken) {
+        // Try to login with the URL token
+        const success = await loginWithToken(urlToken);
+        if (success) {
+          setIsLoading(false);
+          return;
+        }
+        // If URL token login failed, fall through to normal auth check
+      }
+
       await checkAuth();
       setIsLoading(false);
     };
