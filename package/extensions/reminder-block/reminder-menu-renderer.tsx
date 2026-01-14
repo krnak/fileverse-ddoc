@@ -3,6 +3,8 @@ import { ReactRenderer } from '@tiptap/react';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { ReminderMenu } from './reminder-menu';
 import { Reminder, ReminderBlockOptions, ReminderMenuProps } from './types';
+// Import to ensure module augmentation for setReminderBlock command is loaded
+import './reminder-block';
 
 export function showReminderMenu(
   editor: Editor,

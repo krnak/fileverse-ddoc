@@ -107,7 +107,7 @@ export const TableCellNodeView: FC<NodeViewProps> = ({
   };
 
   const handleMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
+    hoverTimeoutRef.current = window.setTimeout(() => {
       setIsHovered(false);
     }, 100);
   };

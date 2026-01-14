@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Editor } from '@tiptap/react';
 import { Reminder } from '../extensions/reminder-block/types';
+// Import to ensure module augmentation for setReminderBlock command is loaded
+import '../extensions/reminder-block/reminder-block';
 
 interface UseReminderProps {
   editor: Editor;

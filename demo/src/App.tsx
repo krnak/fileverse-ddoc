@@ -186,8 +186,8 @@ function App() {
 
   // Debounced save handler
   const handleDocumentChange = useCallback(
-    (content: JSONContent) => {
-      if (!uuid) return;
+    (content: JSONContent | string, _updateChunk?: string) => {
+      if (!uuid || typeof content === 'string') return;
 
       // Clear any pending save
       if (saveTimeoutRef.current) {
