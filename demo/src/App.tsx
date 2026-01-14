@@ -33,6 +33,7 @@ function App() {
   const [initialContent, setInitialContent] = useState<JSONContent | null>(null);
   const [isDocumentLoading, setIsDocumentLoading] = useState(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const commentsRef = useRef<IComment[]>([]);
   const isMobile = useMediaQuery('(max-width: 768px)');
   const isMediaMax1280px = useMediaQuery('(max-width: 1280px)');
   const [selectedTags, setSelectedTags] = useState<TagType[]>([]);
@@ -91,6 +92,11 @@ function App() {
 
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
   const [initialComments, setInitialComment] = useState<IComment[]>([]);
+
+  // Keep commentsRef in sync for save callback
+  useEffect(() => {
+    commentsRef.current = initialComments;
+  }, [initialComments]);
 
   const handleReplyOnComment = (id: string, reply: IComment) => {
     setInitialComment((prev) =>
@@ -158,16 +164,17 @@ function App() {
     }
   }, []);
 
-  // Load document from gate API on mount
+  // Load document and comments from gate API on mount
   useEffect(() => {
     if (!uuid) return;
 
     const loadDocument = async () => {
       setIsDocumentLoading(true);
       try {
-        const content = await gateApi.load(uuid);
-        if (content) {
-          setInitialContent(content);
+        const data = await gateApi.load(uuid);
+        if (data) {
+          setInitialContent(data.content);
+          setInitialComment(data.comments || []);
         }
       } catch (e) {
         console.error('Failed to load document:', e);
@@ -199,7 +206,7 @@ function App() {
       if (!editor) return;
 
       const content = editor.getJSON();
-      const success = await gateApi.save(uuid, content);
+      const success = await gateApi.save(uuid, content, commentsRef.current);
       if (success) {
         console.log('Document saved');
       } else {
@@ -211,6 +218,18 @@ function App() {
       }
     }, 1000);
   }, [uuid]);
+
+  // Trigger save when comments change (after initial load)
+  const isInitialCommentsLoad = useRef(true);
+  useEffect(() => {
+    if (isInitialCommentsLoad.current) {
+      isInitialCommentsLoad.current = false;
+      return;
+    }
+    if (uuid && !isDocumentLoading) {
+      handleDocumentChange();
+    }
+  }, [initialComments, uuid, isDocumentLoading, handleDocumentChange]);
 
   const onToggleCollaboration = async () => {
     const name = prompt('Whats your username');

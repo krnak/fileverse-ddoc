@@ -1,6 +1,12 @@
 import { JSONContent } from '@tiptap/react';
+import { IComment } from '../../../package/extensions/comment';
 
 const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
+
+export interface DocumentData {
+  content: JSONContent;
+  comments: IComment[];
+}
 
 // UUID of the /upload folder in the filesystem
 const UPLOAD_FOLDER_UUID = 'urn:uuid:72cec723-a40d-4f37-af4a-e664e66ecbe3';
@@ -79,9 +85,9 @@ export const gateApi = {
   },
 
   /**
-   * Load document content by UUID
+   * Load document content and comments by UUID
    */
-  async load(uuid: string): Promise<JSONContent | null> {
+  async load(uuid: string): Promise<DocumentData | null> {
     try {
       const response = await fetch(`${GATE_BASE_URL}/res/${uuid}`, {
         method: 'GET',
@@ -95,7 +101,14 @@ export const gateApi = {
         throw new Error(`Load failed: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      // Handle legacy format (just JSONContent without comments wrapper)
+      if (data.content === undefined) {
+        return { content: data, comments: [] };
+      }
+
+      return data as DocumentData;
     } catch (e) {
       console.error('Failed to load document:', e);
       return null;
@@ -103,13 +116,14 @@ export const gateApi = {
   },
 
   /**
-   * Save/update document content by UUID
+   * Save/update document content and comments by UUID
    */
-  async save(uuid: string, content: JSONContent): Promise<boolean> {
+  async save(uuid: string, content: JSONContent, comments: IComment[]): Promise<boolean> {
     try {
+      const data: DocumentData = { content, comments };
       const response = await fetch(`${GATE_BASE_URL}/res/${uuid}`, {
         method: 'PUT',
-        body: JSON.stringify(content),
+        body: JSON.stringify(data),
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
