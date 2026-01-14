@@ -184,32 +184,33 @@ function App() {
     loadDocument();
   }, [uuid]);
 
-  // Debounced save handler
-  const handleDocumentChange = useCallback(
-    (content: JSONContent | string, _updateChunk?: string) => {
-      if (!uuid || typeof content === 'string') return;
+  // Debounced autosave - triggered by onChange, gets content from editor ref
+  const handleDocumentChange = useCallback(() => {
+    if (!uuid) return;
 
-      // Clear any pending save
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save by 1 second
+    saveTimeoutRef.current = setTimeout(async () => {
+      const editor = editorRef.current?.getEditor();
+      if (!editor) return;
+
+      const content = editor.getJSON();
+      const success = await gateApi.save(uuid, content);
+      if (success) {
+        console.log('Document saved');
+      } else {
+        toast({
+          title: 'Failed to save document',
+          variant: 'danger',
+          hasIcon: true,
+        });
       }
-
-      // Debounce save by 1 second
-      saveTimeoutRef.current = setTimeout(async () => {
-        const success = await gateApi.save(uuid, content);
-        if (success) {
-          console.log('Document saved');
-        } else {
-          toast({
-            title: 'Failed to save document',
-            variant: 'danger',
-            hasIcon: true,
-          });
-        }
-      }, 1000);
-    },
-    [uuid],
-  );
+    }, 1000);
+  }, [uuid]);
 
   const onToggleCollaboration = async () => {
     const name = prompt('Whats your username');
