@@ -20,6 +20,7 @@ import { crypto as cryptoUtils } from './crypto';
 import { collabStore } from './storage/collab-store';
 import { gateApi } from './storage/gate-api';
 import { DocumentStylingPanel } from './DocumentStylingPanel';
+import { FileBrowser } from './components/FileBrowser';
 import { DocumentStyling, ICollaborationConfig } from '../../package/types';
 import { getKeyFromURLParams } from './utils';
 
@@ -47,6 +48,7 @@ function App() {
     DocumentStyling | undefined
   >(undefined);
   const [showStylingControls, setShowStylingControls] = useState(false);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
 
   const [inlineCommentData, setInlineCommentData] = useState({
     inlineCommentText: '',
@@ -279,7 +281,7 @@ function App() {
     return (
       <>
         <div className="flex items-center gap-[12px]">
-          <IconButton variant={'ghost'} icon="Menu" size="md" />
+          <IconButton variant={'ghost'} icon="Menu" size="md" onClick={() => setShowFileBrowser(!showFileBrowser)} />
 
           <div className="relative truncate inline-block xl:!max-w-[300px] !max-w-[108px] color-bg-default text-[14px] font-medium leading-[20px]">
             <span className="invisible whitespace-pre">
@@ -502,6 +504,10 @@ function App() {
 
   return (
     <div>
+      <FileBrowser
+        isOpen={showFileBrowser}
+        onClose={() => setShowFileBrowser(false)}
+      />
       <DocumentStylingPanel
         isOpen={showStylingControls}
         onClose={() => setShowStylingControls(false)}

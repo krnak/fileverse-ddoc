@@ -3,6 +3,16 @@ import { IComment } from '../../../package/extensions/comment';
 
 const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
 
+type SparqlBinding = Record<string, { type: string; value: string }>;
+
+export interface FileSystemEntry {
+  uri: string;
+  label: string;
+  type: 'file' | 'directory';
+  mimeType?: string;
+  size?: number;
+}
+
 export interface DocumentData {
   content: JSONContent;
   comments: IComment[];
@@ -139,5 +149,66 @@ export const gateApi = {
       console.error('Failed to save document:', e);
       return false;
     }
+  },
+
+  /**
+   * Execute a SPARQL SELECT query against the gate server
+   */
+  async sparqlQuery(query: string): Promise<SparqlBinding[]> {
+    const response = await fetch(
+      `${GATE_BASE_URL}/query?query=${encodeURIComponent(query)}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/sparql-results+json',
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`SPARQL query failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.results.bindings;
+  },
+
+  /**
+   * List immediate children of a directory in the filesystem graph.
+   * If no directoryUri is provided, lists children of the root directory.
+   */
+  async listDirectory(directoryUri?: string): Promise<FileSystemEntry[]> {
+    const parentClause = directoryUri
+      ? `<${directoryUri}> <http://www.w3.org/ns/posix/stat#includes> ?child .`
+      : `?root rdfs:label "/" . ?root <http://www.w3.org/ns/posix/stat#includes> ?child .`;
+
+    const query = `
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      PREFIX dc: <http://purl.org/dc/terms/>
+
+      SELECT ?child ?label ?type ?mimeType ?size
+      FROM <http://liqk.org/graph/filesystem>
+      WHERE {
+        ${parentClause}
+        ?child rdfs:label ?label .
+        ?child a ?type .
+        FILTER(?type IN (posix:File, posix:Directory))
+        OPTIONAL { ?child dc:format ?mimeType }
+        OPTIONAL { ?child posix:size ?size }
+      }
+      ORDER BY ?type ?label
+    `;
+
+    const bindings = await this.sparqlQuery(query);
+
+    return bindings.map((b) => ({
+      uri: b.child.value,
+      label: b.label.value,
+      type: b.type.value.includes('Directory') ? 'directory' : 'file',
+      mimeType: b.mimeType?.value,
+      size: b.size?.value ? Number(b.size.value) : undefined,
+    }));
   },
 };
