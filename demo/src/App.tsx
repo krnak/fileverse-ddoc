@@ -166,6 +166,9 @@ function App() {
     }
   }, []);
 
+  const savedLabelRef = useRef<string>('');
+  const titleSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Load document and comments from gate API on mount
   useEffect(() => {
     if (!uuid) return;
@@ -173,10 +176,17 @@ function App() {
     const loadDocument = async () => {
       setIsDocumentLoading(true);
       try {
-        const data = await gateApi.load(uuid);
+        const [data, label] = await Promise.all([
+          gateApi.load(uuid),
+          gateApi.getLabel(`urn:uuid:${uuid}`),
+        ]);
         if (data) {
           setInitialContent(data.content);
           setInitialComment(data.comments || []);
+        }
+        if (label) {
+          setTitle(label);
+          savedLabelRef.current = label;
         }
       } catch (e) {
         console.error('Failed to load document:', e);
@@ -292,7 +302,24 @@ function App() {
               type="text"
               placeholder="Untitled"
               value={title}
-              onChange={(e) => setTitle?.(e.target.value)}
+              onChange={(e) => {
+                const newTitle = e.target.value;
+                setTitle(newTitle);
+                if (!uuid) return;
+                if (titleSaveTimeoutRef.current) {
+                  clearTimeout(titleSaveTimeoutRef.current);
+                }
+                titleSaveTimeoutRef.current = setTimeout(async () => {
+                  const oldLabel = savedLabelRef.current;
+                  if (!oldLabel || newTitle === oldLabel) return;
+                  try {
+                    await gateApi.updateLabel(`urn:uuid:${uuid}`, oldLabel, newTitle);
+                    savedLabelRef.current = newTitle;
+                  } catch (err) {
+                    console.error('Failed to save title:', err);
+                  }
+                }, 1000);
+              }}
             />
           </div>
           <Tag

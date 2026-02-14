@@ -207,6 +207,60 @@ export const gateApi = {
   },
 
   /**
+   * Get the rdfs:label of a resource by URI
+   */
+  async getLabel(uri: string): Promise<string | null> {
+    const query = `
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT ?label
+      FROM <http://liqk.org/graph/filesystem>
+      WHERE {
+        <${uri}> rdfs:label ?label .
+      }
+      LIMIT 1
+    `;
+
+    try {
+      const bindings = await this.sparqlQuery(query);
+      return bindings.length > 0 ? bindings[0].label.value : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Update the rdfs:label of a resource
+   */
+  async updateLabel(uri: string, oldLabel: string, newLabel: string): Promise<void> {
+    const sparqlUpdate = `
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      DELETE DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${uri}> rdfs:label "${oldLabel}" .
+        }
+      };
+      INSERT DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${uri}> rdfs:label "${newLabel}" .
+        }
+      }
+    `;
+
+    const response = await fetch(`${GATE_BASE_URL}/update`, {
+      method: 'POST',
+      body: sparqlUpdate,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/sparql-update',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update label: ${response.status} ${response.statusText}`);
+    }
+  },
+
+  /**
    * List filesystem entries that are direct targets of access policies.
    * These are the resources the current session has been granted access to,
    * and form the root entries of the file browser.
