@@ -175,14 +175,51 @@ export const gateApi = {
   },
 
   /**
-   * List immediate children of a directory in the filesystem graph.
-   * If no directoryUri is provided, lists children of the root directory.
+   * List filesystem entries that are direct targets of access policies.
+   * These are the resources the current session has been granted access to,
+   * and form the root entries of the file browser.
    */
-  async listDirectory(directoryUri?: string): Promise<FileSystemEntry[]> {
-    const parentClause = directoryUri
-      ? `<${directoryUri}> <http://www.w3.org/ns/posix/stat#includes> ?child .`
-      : `?root rdfs:label "/" . ?root <http://www.w3.org/ns/posix/stat#includes> ?child .`;
+  async listAccessibleRoots(): Promise<FileSystemEntry[]> {
+    const query = `
+      PREFIX liqk: <http://liqk.org/schema#>
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      PREFIX dc: <http://purl.org/dc/terms/>
 
+      SELECT DISTINCT ?target ?label ?type ?mimeType ?size
+      FROM <http://liqk.org/graph/access>
+      FROM <http://liqk.org/graph/filesystem>
+      WHERE {
+        ?policy a liqk:AccessPolicy ;
+                liqk:policy-target ?target ;
+                liqk:access-level ?level .
+        ?level liqk:rank ?rank .
+        FILTER(?rank >= 1)
+
+        ?target rdfs:label ?label .
+        ?target a ?type .
+        FILTER(?type IN (posix:File, posix:Directory))
+        OPTIONAL { ?target dc:format ?mimeType }
+        OPTIONAL { ?target posix:size ?size }
+      }
+      ORDER BY ?type ?label
+    `;
+
+    const bindings = await this.sparqlQuery(query);
+
+    return bindings.map((b) => ({
+      uri: b.target.value,
+      label: b.label.value,
+      type: b.type.value.includes('Directory') ? 'directory' : 'file',
+      mimeType: b.mimeType?.value,
+      size: b.size?.value ? Number(b.size.value) : undefined,
+    }));
+  },
+
+  /**
+   * List immediate children of a directory in the filesystem graph.
+   */
+  async listDirectory(directoryUri: string): Promise<FileSystemEntry[]> {
     const query = `
       PREFIX posix: <http://www.w3.org/ns/posix/stat#>
       PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -191,7 +228,7 @@ export const gateApi = {
       SELECT ?child ?label ?type ?mimeType ?size
       FROM <http://liqk.org/graph/filesystem>
       WHERE {
-        ${parentClause}
+        <${directoryUri}> posix:includes ?child .
         ?child rdfs:label ?label .
         ?child a ?type .
         FILTER(?type IN (posix:File, posix:Directory))

@@ -111,7 +111,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     setRootLoading(true);
     setError(null);
     try {
-      const entries = await gateApi.listDirectory();
+      const entries = await gateApi.listAccessibleRoots();
       setTree(
         entries.map((entry) => ({
           entry,
