@@ -64,7 +64,7 @@ function TreeItem({
   return (
     <>
       <button
-        className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-left text-slate-700 dark:text-slate-200 transition-colors ${isDragOver ? 'ring-2 ring-blue-400' : ''}`}
+        className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded hover:color-bg-default-hover text-left color-text-default transition-colors ${isDragOver ? 'ring-2 ring-blue-400' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => (isDir ? onToggle(node.entry.uri) : onFileClick(node.entry))}
         draggable={canDrag}
@@ -113,7 +113,7 @@ function TreeItem({
           ))}
           {node.children.length === 0 && (
             <div
-              className="text-xs text-slate-400 dark:text-slate-500 italic py-1"
+              className="text-xs color-text-secondary italic py-1"
               style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
             >
               Empty
@@ -353,16 +353,16 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   return (
     <div
       ref={panelRef}
-      className={`relative shrink-0 border-r border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 h-full overflow-hidden transition-[width] duration-200 flex flex-col ${!isOpen ? 'w-0 !border-r-0' : ''}`}
+      className={`relative shrink-0 border-r color-border-default color-bg-secondary h-full overflow-hidden transition-[width] duration-200 flex flex-col pt-[108px] ${!isOpen ? 'w-0 !border-r-0' : ''}`}
       style={isOpen ? { width: panelWidth } : undefined}
     >
       <div className="flex items-center justify-between p-4 pb-2">
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+        <h3 className="text-lg font-semibold color-text-default whitespace-nowrap">
           Files
         </h3>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+          className="color-text-secondary hover:color-text-default transition-colors p-1 rounded-full hover:color-bg-default-hover"
           aria-label="Close panel"
         >
           <svg
@@ -384,7 +384,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       <div className="px-4 pb-2">
         <button
           onClick={() => navigate('/document/new')}
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 rounded-lg border border-dashed border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors whitespace-nowrap"
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium color-text-link rounded-lg border border-dashed color-border-default hover:brightness-95 transition-colors whitespace-nowrap"
         >
           <LucideIcon name="Plus" size="sm" />
           New Document
@@ -394,7 +394,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {rootLoading && (
           <div className="flex items-center justify-center py-8">
-            <LucideIcon name="Loader2" size="md" className="animate-spin text-slate-400" />
+            <LucideIcon name="Loader2" size="md" className="animate-spin color-text-secondary" />
           </div>
         )}
         {error && (
@@ -409,7 +409,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
           </div>
         )}
         {!rootLoading && !error && tree.length === 0 && (
-          <div className="px-2 py-4 text-sm text-slate-400 text-center italic">
+          <div className="px-2 py-4 text-sm color-text-secondary text-center italic">
             No files found
           </div>
         )}
@@ -432,7 +432,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
 
       {/* Drag handle for resizing */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:color-bg-default-selected transition-colors"
         onMouseDown={handleResizeMouseDown}
       />
     </div>
