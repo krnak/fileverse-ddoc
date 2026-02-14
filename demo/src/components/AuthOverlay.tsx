@@ -1,4 +1,5 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
+import { gateApi } from '../storage/gate-api';
 
 const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
 
@@ -16,7 +17,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   tokenHash: string | null;
+  tokenLabel: string | null;
   checkAuth: () => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 
 /**
@@ -60,6 +63,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [tokenHash, setTokenHash] = useState<string | null>(
     () => localStorage.getItem(TOKEN_HASH_KEY),
   );
+  const [tokenLabel, setTokenLabel] = useState<string | null>(null);
+
+  const fetchTokenLabel = useCallback(async (hash: string) => {
+    try {
+      const label = await gateApi.getTokenLabel(hash);
+      if (label) setTokenLabel(label);
+    } catch (e) {
+      console.error('Failed to fetch token label:', e);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    localStorage.removeItem(TOKEN_HASH_KEY);
+    setTokenHash(null);
+    setTokenLabel(null);
+    setIsAuthenticated(false);
+    setShowOverlay(true);
+    try {
+      await fetch(`${GATE_BASE_URL}/gate/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // best-effort
+    }
+  }, []);
 
   const checkAuth = async (): Promise<boolean> => {
     try {
@@ -110,6 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.setItem(TOKEN_HASH_KEY, hash);
         setIsAuthenticated(true);
         setShowOverlay(false);
+        fetchTokenLabel(hash);
         return true;
       }
       return false;
@@ -136,7 +166,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // If URL token login failed, fall through to normal auth check
       }
 
-      await checkAuth();
+      const authed = await checkAuth();
+      if (authed) {
+        const storedHash = localStorage.getItem(TOKEN_HASH_KEY);
+        if (storedHash) fetchTokenLabel(storedHash);
+      }
       setIsLoading(false);
     };
     init();
@@ -167,6 +201,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(true);
         setShowOverlay(false);
         setToken('');
+        fetchTokenLabel(hash);
       } else {
         setError('Invalid token. Please try again.');
       }
@@ -187,7 +222,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, tokenHash, checkAuth }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, tokenHash, tokenLabel, checkAuth, logout }}>
       {showOverlay && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#16213e] p-8 rounded-xl shadow-2xl max-w-md w-[90%] text-center">

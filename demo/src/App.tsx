@@ -23,9 +23,11 @@ import { DocumentStylingPanel } from './DocumentStylingPanel';
 import { FileBrowser } from './components/FileBrowser';
 import { DocumentStyling, ICollaborationConfig } from '../../package/types';
 import { getKeyFromURLParams } from './utils';
+import { useAuth } from './components/AuthOverlay';
 
 function App() {
   const { uuid } = useParams<{ uuid: string }>();
+  const { tokenLabel, logout } = useAuth();
   const [enableCollaboration, setEnableCollaboration] = useState(false);
   const [username, setUsername] = useState('username');
   const [title, setTitle] = useState('Untitled');
@@ -90,6 +92,14 @@ function App() {
     };
     setupCollaboration();
   }, [paramCollaborationId, paramKey]);
+
+  // Sync username from token label
+  useEffect(() => {
+    if (tokenLabel) {
+      setUsername(tokenLabel);
+    }
+  }, [tokenLabel]);
+
   //To handle comments from consumer side
 
   const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
@@ -499,13 +509,40 @@ function App() {
           >
             Share
           </Button>
-          <div className="flex gap-2 px-2 justify-center items-center">
-            <LucideIcon name="Farcaster" />
-            <div className="flex-col hidden xl:flex">
-              <p className="text-heading-xsm">@[username]</p>
-              <p className="text-helper-text-sm">Farcaster</p>
-            </div>
-          </div>
+          <DynamicDropdown
+            key="user-menu"
+            align="end"
+            sideOffset={10}
+            anchorTrigger={
+              <button className="flex gap-2 px-2 justify-center items-center cursor-pointer hover:opacity-80">
+                <LucideIcon name="User" />
+                <div className="flex-col hidden xl:flex">
+                  <p className="text-heading-xsm">@{username}</p>
+                </div>
+              </button>
+            }
+            content={
+              <div className="flex flex-col gap-1 p-2 w-fit shadow-elevation-3">
+                <Button
+                  variant="ghost"
+                  onClick={async () => {
+                    if (enableCollaboration && collabConfig?.isOwner) {
+                      editorRef.current?.terminateSession();
+                      setEnableCollaboration(false);
+                      setCollabConf(undefined);
+                      setCollaborationId('');
+                      collabStore.clearCollabConf();
+                    }
+                    await logout();
+                  }}
+                  className="flex justify-start gap-2"
+                >
+                  <LucideIcon name="LogOut" size="sm" />
+                  Log Out
+                </Button>
+              </div>
+            }
+          />
         </div>
       </>
     );

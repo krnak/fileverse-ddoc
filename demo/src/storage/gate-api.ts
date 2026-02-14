@@ -207,6 +207,29 @@ export const gateApi = {
   },
 
   /**
+   * Get the rdfs:label of the grantee associated with a token hash from the access graph
+   */
+  async getTokenLabel(tokenHash: string): Promise<string | null> {
+    const query = `
+      PREFIX liqk: <http://liqk.org/schema#>
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      SELECT ?label FROM <http://liqk.org/graph/access>
+      WHERE {
+        ?grantee liqk:token-hash "${tokenHash}" ;
+                 rdfs:label ?label .
+      }
+      LIMIT 1
+    `;
+
+    try {
+      const bindings = await this.sparqlQuery(query);
+      return bindings.length > 0 ? bindings[0].label.value : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Get the rdfs:label of a resource by URI
    */
   async getLabel(uri: string): Promise<string | null> {
