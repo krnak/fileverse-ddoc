@@ -353,7 +353,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   return (
     <div
       ref={panelRef}
-      className={`relative shrink-0 border-r color-border-default color-bg-secondary h-full overflow-hidden transition-[width] duration-200 flex flex-col pt-[108px] ${!isOpen ? 'w-0 !border-r-0' : ''}`}
+      className={`relative shrink-0 border-r color-border-default color-bg-secondary h-full overflow-hidden transition-[width] duration-200 flex flex-col ${!isOpen ? 'w-0 !border-r-0' : ''}`}
       style={isOpen ? { width: panelWidth } : undefined}
     >
       <div className="flex items-center justify-between p-4 pb-2">

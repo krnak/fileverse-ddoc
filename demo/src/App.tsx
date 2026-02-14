@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useOutletContext } from 'react-router-dom';
 import DdocEditor from '../../package/ddoc-editor';
 import { JSONContent } from '@tiptap/react';
 import {
@@ -20,13 +20,14 @@ import { crypto as cryptoUtils } from './crypto';
 import { collabStore } from './storage/collab-store';
 import { gateApi } from './storage/gate-api';
 import { DocumentStylingPanel } from './DocumentStylingPanel';
-import { FileBrowser } from './components/FileBrowser';
 import { DocumentStyling, ICollaborationConfig } from '../../package/types';
+import { LayoutContext } from './Layout';
 import { getKeyFromURLParams } from './utils';
 import { useAuth } from './components/AuthOverlay';
 
 function App() {
   const { uuid } = useParams<{ uuid: string }>();
+  const { showFileBrowser, toggleFileBrowser } = useOutletContext<LayoutContext>();
   const { tokenLabel, logout } = useAuth();
   const [enableCollaboration, setEnableCollaboration] = useState(false);
   const [username, setUsername] = useState('username');
@@ -50,8 +51,6 @@ function App() {
     DocumentStyling | undefined
   >(undefined);
   const [showStylingControls, setShowStylingControls] = useState(false);
-  const [showFileBrowser, setShowFileBrowser] = useState(false);
-
   const [inlineCommentData, setInlineCommentData] = useState({
     inlineCommentText: '',
     highlightedTextContent: '',
@@ -301,7 +300,7 @@ function App() {
     return (
       <>
         <div className="flex items-center gap-[12px]">
-          <IconButton variant={'ghost'} icon="Menu" size="md" onClick={() => setShowFileBrowser(!showFileBrowser)} />
+          <IconButton variant={'ghost'} icon="Menu" size="md" onClick={toggleFileBrowser} />
 
           <div className="relative truncate inline-block xl:!max-w-[300px] !max-w-[108px] color-bg-default text-[14px] font-medium leading-[20px]">
             <span className="invisible whitespace-pre">
@@ -560,92 +559,86 @@ function App() {
   // Show loading state while document is being loaded
   if (isDocumentLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full">
         <p>Loading document...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <FileBrowser
-        isOpen={showFileBrowser}
-        onClose={() => setShowFileBrowser(false)}
+    <div>
+      <DocumentStylingPanel
+        isOpen={showStylingControls}
+        onClose={() => setShowStylingControls(false)}
+        documentStyling={documentStyling}
+        onStylingChange={setDocumentStyling}
       />
-      <div className="flex-1 min-w-0">
-        <DocumentStylingPanel
-          isOpen={showStylingControls}
-          onClose={() => setShowStylingControls(false)}
-          documentStyling={documentStyling}
-          onStylingChange={setDocumentStyling}
-        />
-        <DdocEditor
-          ref={editorRef}
-          enableCollaboration={enableCollaboration}
-          collaborationId={collaborationId}
-          username={username}
-          setUsername={setUsername}
-          isPreviewMode={isPreviewMode}
-          disableInlineComment={disableInlineComment}
-          onError={(error) => {
-            toast({
-              title: 'Error',
-              description: error,
-              variant: 'danger',
-              hasIcon: true,
-            });
-          }}
-          renderNavbar={renderNavbar}
-          ensResolutionUrl={import.meta.env.ENS_RESOLUTION_URL}
-          selectedTags={selectedTags}
-          setSelectedTags={setSelectedTags}
-          isCommentSectionOpen={isCommentSectionOpen}
-          setIsCommentSectionOpen={setIsCommentSectionOpen}
-          setInlineCommentData={setInlineCommentData}
-          inlineCommentData={inlineCommentData}
-          commentDrawerOpen={commentDrawerOpen}
-          setCommentDrawerOpen={setCommentDrawerOpen}
-          isPresentationMode={isPresentationMode}
-          setIsPresentationMode={setIsPresentationMode}
-          zoomLevel={zoomLevel}
-          setZoomLevel={setZoomLevel}
-          isNavbarVisible={isNavbarVisible}
-          setIsNavbarVisible={setIsNavbarVisible}
-          onComment={(): void => {}}
-          onInlineComment={(): void => {}}
-          onMarkdownImport={(): void => {}}
-          onMarkdownExport={(): void => {}}
-          onPdfExport={(): void => {}}
-          onHtmlExport={(): void => {}}
-          onTxtExport={(): void => {}}
-          onDocxImport={(): void => {}}
-          initialComments={initialComments}
-          onCommentReply={handleReplyOnComment}
-          onNewComment={handleNewComment}
-          setInitialComments={setInitialComment}
-          onResolveComment={handleResolveComment}
-          onUnresolveComment={handleUnresolveComment}
-          onDeleteComment={handleDeleteComment}
-          showTOC={showTOC}
-          setShowTOC={setShowTOC}
-          isConnected={isConnected}
-          connectViaWallet={async () => {}}
-          isLoading={false}
-          connectViaUsername={handleConnectViaUsername}
-          onCopyHeadingLink={(link: string) => {
-            navigator.clipboard.writeText(link);
-          }}
-          collabConfig={collabConfig}
-          onCollaboratorChange={onCollaboratorChange}
-          documentStyling={documentStyling}
-          initialContent={initialContent}
-          onChange={handleDocumentChange}
-        />
-        <Toaster
-          position={!isMobile ? 'bottom-right' : 'center-top'}
-          duration={3000}
-        />
-      </div>
+      <DdocEditor
+        ref={editorRef}
+        enableCollaboration={enableCollaboration}
+        collaborationId={collaborationId}
+        username={username}
+        setUsername={setUsername}
+        isPreviewMode={isPreviewMode}
+        disableInlineComment={disableInlineComment}
+        onError={(error) => {
+          toast({
+            title: 'Error',
+            description: error,
+            variant: 'danger',
+            hasIcon: true,
+          });
+        }}
+        renderNavbar={renderNavbar}
+        ensResolutionUrl={import.meta.env.ENS_RESOLUTION_URL}
+        selectedTags={selectedTags}
+        setSelectedTags={setSelectedTags}
+        isCommentSectionOpen={isCommentSectionOpen}
+        setIsCommentSectionOpen={setIsCommentSectionOpen}
+        setInlineCommentData={setInlineCommentData}
+        inlineCommentData={inlineCommentData}
+        commentDrawerOpen={commentDrawerOpen}
+        setCommentDrawerOpen={setCommentDrawerOpen}
+        isPresentationMode={isPresentationMode}
+        setIsPresentationMode={setIsPresentationMode}
+        zoomLevel={zoomLevel}
+        setZoomLevel={setZoomLevel}
+        isNavbarVisible={isNavbarVisible}
+        setIsNavbarVisible={setIsNavbarVisible}
+        onComment={(): void => {}}
+        onInlineComment={(): void => {}}
+        onMarkdownImport={(): void => {}}
+        onMarkdownExport={(): void => {}}
+        onPdfExport={(): void => {}}
+        onHtmlExport={(): void => {}}
+        onTxtExport={(): void => {}}
+        onDocxImport={(): void => {}}
+        initialComments={initialComments}
+        onCommentReply={handleReplyOnComment}
+        onNewComment={handleNewComment}
+        setInitialComments={setInitialComment}
+        onResolveComment={handleResolveComment}
+        onUnresolveComment={handleUnresolveComment}
+        onDeleteComment={handleDeleteComment}
+        showTOC={showTOC}
+        setShowTOC={setShowTOC}
+        isConnected={isConnected}
+        connectViaWallet={async () => {}}
+        isLoading={false}
+        connectViaUsername={handleConnectViaUsername}
+        onCopyHeadingLink={(link: string) => {
+          navigator.clipboard.writeText(link);
+        }}
+        collabConfig={collabConfig}
+        onCollaboratorChange={onCollaboratorChange}
+        documentStyling={documentStyling}
+        initialContent={initialContent}
+        onChange={handleDocumentChange}
+      />
+      <Toaster
+        position={!isMobile ? 'bottom-right' : 'center-top'}
+        duration={3000}
+      />
     </div>
   );
 }

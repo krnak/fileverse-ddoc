@@ -5,16 +5,16 @@ import { ThemeProvider } from '@fileverse/ui';
 import App from './App.tsx';
 import { NewDocument } from './routes/NewDocument.tsx';
 import { AuthProvider } from './components/AuthOverlay.tsx';
+import { Layout } from './Layout.tsx';
 
 const router = createBrowserRouter(
   [
     {
-      path: '/document/new',
-      element: <NewDocument />,
-    },
-    {
-      path: '/document/:uuid',
-      element: <App />,
+      element: <Layout />,
+      children: [
+        { path: '/document/new', element: <NewDocument /> },
+        { path: '/document/:uuid', element: <App /> },
+      ],
     },
   ],
   {
