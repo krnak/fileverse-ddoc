@@ -391,7 +391,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
+      <div className="flex-1 custom-scrollbar px-2 pb-4">
         {rootLoading && (
           <div className="flex items-center justify-center py-8">
             <LucideIcon name="Loader2" size="md" className="animate-spin color-text-secondary" />
