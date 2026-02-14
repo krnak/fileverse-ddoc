@@ -2,9 +2,20 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 
 const GATE_BASE_URL = import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
 
+const TOKEN_HASH_KEY = 'gate_token_hash';
+
+async function sha256(message: string): Promise<string> {
+  const data = new TextEncoder().encode(message);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  tokenHash: string | null;
   checkAuth: () => Promise<boolean>;
 }
 
@@ -46,6 +57,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [token, setToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tokenHash, setTokenHash] = useState<string | null>(
+    () => localStorage.getItem(TOKEN_HASH_KEY),
+  );
 
   const checkAuth = async (): Promise<boolean> => {
     try {
@@ -91,6 +105,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (response.ok || response.redirected) {
+        const hash = await sha256(accessToken);
+        setTokenHash(hash);
+        localStorage.setItem(TOKEN_HASH_KEY, hash);
         setIsAuthenticated(true);
         setShowOverlay(false);
         return true;
@@ -144,7 +161,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (response.ok || response.redirected) {
-        // Login successful - cookie should be set
+        const hash = await sha256(token);
+        setTokenHash(hash);
+        localStorage.setItem(TOKEN_HASH_KEY, hash);
         setIsAuthenticated(true);
         setShowOverlay(false);
         setToken('');
@@ -168,7 +187,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, checkAuth }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, tokenHash, checkAuth }}>
       {showOverlay && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-[#16213e] p-8 rounded-xl shadow-2xl max-w-md w-[90%] text-center">

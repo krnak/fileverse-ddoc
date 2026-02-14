@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LucideIcon } from '@fileverse/ui';
 import { useOnClickOutside } from 'usehooks-ts';
 import { gateApi, FileSystemEntry } from '../storage/gate-api';
+import { useAuth } from './AuthOverlay';
 
 const GATE_BASE_URL =
   import.meta.env.VITE_GATE_BASE_URL || 'https://liqk.local.dev';
@@ -103,6 +104,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [rootLoading, setRootLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { tokenHash } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
 
   useOnClickOutside(panelRef as React.RefObject<HTMLElement>, onClose);
@@ -111,7 +113,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     setRootLoading(true);
     setError(null);
     try {
-      const entries = await gateApi.listAccessibleRoots();
+      const entries = await gateApi.listAccessibleRoots(tokenHash);
       setTree(
         entries.map((entry) => ({
           entry,
@@ -126,7 +128,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     } finally {
       setRootLoading(false);
     }
-  }, []);
+  }, [tokenHash]);
 
   useEffect(() => {
     if (isOpen) loadRoot();

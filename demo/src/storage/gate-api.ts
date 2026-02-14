@@ -179,7 +179,18 @@ export const gateApi = {
    * These are the resources the current session has been granted access to,
    * and form the root entries of the file browser.
    */
-  async listAccessibleRoots(): Promise<FileSystemEntry[]> {
+  async listAccessibleRoots(tokenHash: string | null): Promise<FileSystemEntry[]> {
+    // Filter by the current token's policies, plus any public policies
+    const tokenClause = tokenHash
+      ? `{
+          ?policy liqk:policy-type liqk:policy-type-public .
+        } UNION {
+          ?policy liqk:policy-type liqk:policy-type-token ;
+                  liqk:policy-grantee ?grantee .
+          ?grantee liqk:token-hash "${tokenHash}" .
+        }`
+      : `?policy liqk:policy-type liqk:policy-type-public .`;
+
     const query = `
       PREFIX liqk: <http://liqk.org/schema#>
       PREFIX posix: <http://www.w3.org/ns/posix/stat#>
@@ -193,6 +204,7 @@ export const gateApi = {
         ?policy a liqk:AccessPolicy ;
                 liqk:policy-target ?target ;
                 liqk:access-level ?level .
+        ${tokenClause}
         ?level liqk:rank ?rank .
         FILTER(?rank >= 1)
 
