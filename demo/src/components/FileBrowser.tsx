@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LucideIcon } from '@fileverse/ui';
-import { useOnClickOutside } from 'usehooks-ts';
 import { gateApi, FileSystemEntry } from '../storage/gate-api';
 import { useAuth } from './AuthOverlay';
 
@@ -131,12 +130,15 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [rootLoading, setRootLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOverUri, setDragOverUri] = useState<string | null>(null);
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('file_browser_width');
+    return saved ? Number(saved) : 288;
+  });
   const navigate = useNavigate();
   const { tokenHash } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ entryUri: string; parentUri: string } | null>(null);
-
-  useOnClickOutside(panelRef as React.RefObject<HTMLElement>, onClose);
+  const isResizing = useRef(false);
 
   const loadRoot = useCallback(async () => {
     setRootLoading(true);
@@ -161,8 +163,8 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   }, [tokenHash]);
 
   useEffect(() => {
-    if (isOpen) loadRoot();
-  }, [isOpen, loadRoot]);
+    loadRoot();
+  }, [loadRoot]);
 
   const handleToggle = useCallback(async (uri: string) => {
     setTree((prev) => {
@@ -215,12 +217,11 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
       const uuid = entry.uri.replace('urn:uuid:', '');
       if (entry.mimeType === 'application/json') {
         navigate(`/document/${uuid}`);
-        onClose();
       } else {
         window.open(`${GATE_BASE_URL}/res/${uuid}`, '_blank');
       }
     },
-    [navigate, onClose],
+    [navigate],
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, node: TreeNode) => {
@@ -329,15 +330,34 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     setDragOverUri(null);
   }, []);
 
-  if (!isOpen) return null;
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const onMouseMove = (e: MouseEvent) => {
+      const newWidth = Math.min(500, Math.max(200, e.clientX));
+      setPanelWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      setPanelWidth((w) => {
+        localStorage.setItem('file_browser_width', String(w));
+        return w;
+      });
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
 
   return (
     <div
       ref={panelRef}
-      className="fixed top-[108px] left-4 z-50 w-72 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl backdrop-blur-sm max-h-[calc(100vh-120px)] flex flex-col"
+      className={`relative shrink-0 border-r border-slate-200 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 h-full overflow-hidden transition-[width] duration-200 flex flex-col ${!isOpen ? 'w-0 !border-r-0' : ''}`}
+      style={isOpen ? { width: panelWidth } : undefined}
     >
       <div className="flex items-center justify-between p-4 pb-2">
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
           Files
         </h3>
         <button
@@ -363,11 +383,8 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
 
       <div className="px-4 pb-2">
         <button
-          onClick={() => {
-            navigate('/document/new');
-            onClose();
-          }}
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 rounded-lg border border-dashed border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+          onClick={() => navigate('/document/new')}
+          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 rounded-lg border border-dashed border-blue-300 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors whitespace-nowrap"
         >
           <LucideIcon name="Plus" size="sm" />
           New Document
@@ -412,6 +429,12 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
           />
         ))}
       </div>
+
+      {/* Drag handle for resizing */}
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+        onMouseDown={handleResizeMouseDown}
+      />
     </div>
   );
 }
