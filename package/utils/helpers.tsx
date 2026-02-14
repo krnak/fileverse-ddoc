@@ -51,24 +51,25 @@ export const getTemporaryEditor = (editor: Editor, content: JSONContent) => {
   return temporalEditor;
 };
 
-export const dateFormatter = (date: Date) => {
+export const dateFormatter = (date: Date | string | number) => {
+  const d = date instanceof Date ? date : new Date(date);
   const oneDayAgo = subDays(new Date(), 1);
 
   // Show relative time if less than 24 hours ago
-  if (isAfter(date, oneDayAgo)) {
-    return formatDistanceToNow(date, { addSuffix: true });
+  if (isAfter(d, oneDayAgo)) {
+    return formatDistanceToNow(d, { addSuffix: true });
   }
 
   // Otherwise use the existing format
   return (
     <>
-      {date.toLocaleTimeString([], {
+      {d.toLocaleTimeString([], {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
       })}
       <span>&#8226;</span>
-      {date.toLocaleDateString('en-US', {
+      {d.toLocaleDateString('en-US', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
