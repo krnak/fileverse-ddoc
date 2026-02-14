@@ -13,6 +13,7 @@ interface TreeNode {
   children: TreeNode[] | null;
   isExpanded: boolean;
   isLoading: boolean;
+  parentUri: string | null;
 }
 
 interface FileBrowserProps {
@@ -39,20 +40,40 @@ function TreeItem({
   depth,
   onToggle,
   onFileClick,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragLeave,
+  onDragEnd,
+  dragOverUri,
 }: {
   node: TreeNode;
   depth: number;
   onToggle: (uri: string) => void;
   onFileClick: (entry: FileSystemEntry) => void;
+  onDragStart: (e: React.DragEvent, node: TreeNode) => void;
+  onDragOver: (e: React.DragEvent, node: TreeNode) => void;
+  onDrop: (e: React.DragEvent, node: TreeNode) => void;
+  onDragLeave: () => void;
+  onDragEnd: () => void;
+  dragOverUri: string | null;
 }) {
   const isDir = node.entry.type === 'directory';
+  const canDrag = node.parentUri !== null;
+  const isDragOver = dragOverUri === node.entry.uri;
 
   return (
     <>
       <button
-        className="flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-left text-slate-700 dark:text-slate-200 transition-colors"
+        className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-left text-slate-700 dark:text-slate-200 transition-colors ${isDragOver ? 'ring-2 ring-blue-400' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => (isDir ? onToggle(node.entry.uri) : onFileClick(node.entry))}
+        draggable={canDrag}
+        onDragStart={(e) => onDragStart(e, node)}
+        onDragOver={(e) => onDragOver(e, node)}
+        onDrop={(e) => onDrop(e, node)}
+        onDragLeave={onDragLeave}
+        onDragEnd={onDragEnd}
       >
         {isDir ? (
           node.isLoading ? (
@@ -83,6 +104,12 @@ function TreeItem({
               depth={depth + 1}
               onToggle={onToggle}
               onFileClick={onFileClick}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              onDragLeave={onDragLeave}
+              onDragEnd={onDragEnd}
+              dragOverUri={dragOverUri}
             />
           ))}
           {node.children.length === 0 && (
@@ -103,9 +130,11 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [rootLoading, setRootLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragOverUri, setDragOverUri] = useState<string | null>(null);
   const navigate = useNavigate();
   const { tokenHash } = useAuth();
   const panelRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ entryUri: string; parentUri: string } | null>(null);
 
   useOnClickOutside(panelRef as React.RefObject<HTMLElement>, onClose);
 
@@ -120,6 +149,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
           children: null,
           isExpanded: false,
           isLoading: false,
+          parentUri: null,
         })),
       );
     } catch (e) {
@@ -162,6 +192,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
         children: null,
         isExpanded: false,
         isLoading: false,
+        parentUri: uri,
       }));
       setTree((prev) =>
         updateNode(prev, uri, (n) => ({
@@ -191,6 +222,112 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     },
     [navigate, onClose],
   );
+
+  const handleDragStart = useCallback((e: React.DragEvent, node: TreeNode) => {
+    if (node.parentUri === null) {
+      e.preventDefault();
+      return;
+    }
+    dragRef.current = { entryUri: node.entry.uri, parentUri: node.parentUri };
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, node: TreeNode) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (node.entry.type !== 'directory') return;
+    if (node.entry.uri === drag.entryUri) return;
+    if (node.entry.uri === drag.parentUri) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverUri(node.entry.uri);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, targetNode: TreeNode) => {
+    e.preventDefault();
+    setDragOverUri(null);
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+
+    const { entryUri, parentUri: fromDirUri } = drag;
+    const toDirUri = targetNode.entry.uri;
+
+    if (fromDirUri === toDirUri) return;
+    if (entryUri === toDirUri) return;
+    if (isDescendantOf(tree, entryUri, toDirUri)) return;
+
+    // Optimistic UI update
+    setTree((prev) => {
+      // Find the node being moved
+      const movedNode = findNode(prev, entryUri);
+      if (!movedNode) return prev;
+
+      // Remove from old parent
+      let updated = updateNode(prev, fromDirUri, (n) => ({
+        ...n,
+        children: n.children ? n.children.filter((c) => c.entry.uri !== entryUri) : null,
+      }));
+
+      // Add to new parent if its children are loaded
+      updated = updateNode(updated, toDirUri, (n) => ({
+        ...n,
+        children: n.children
+          ? [...n.children, { ...movedNode, parentUri: toDirUri }]
+          : null,
+      }));
+
+      return updated;
+    });
+
+    try {
+      await gateApi.moveEntry(entryUri, fromDirUri, toDirUri);
+    } catch (err) {
+      console.error('Failed to move entry:', err);
+      // Revert by re-fetching both directories
+      try {
+        const [fromEntries, toEntries] = await Promise.all([
+          gateApi.listDirectory(fromDirUri),
+          gateApi.listDirectory(toDirUri),
+        ]);
+        setTree((prev) => {
+          let updated = updateNode(prev, fromDirUri, (n) => ({
+            ...n,
+            children: fromEntries.map((entry) => ({
+              entry,
+              children: null,
+              isExpanded: false,
+              isLoading: false,
+              parentUri: fromDirUri,
+            })),
+          }));
+          updated = updateNode(updated, toDirUri, (n) => ({
+            ...n,
+            children: toEntries.map((entry) => ({
+              entry,
+              children: null,
+              isExpanded: false,
+              isLoading: false,
+              parentUri: toDirUri,
+            })),
+          }));
+          return updated;
+        });
+      } catch {
+        // If revert also fails, reload root
+        loadRoot();
+      }
+    }
+  }, [tree, loadRoot]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverUri(null);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragRef.current = null;
+    setDragOverUri(null);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -266,6 +403,12 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             depth={0}
             onToggle={handleToggle}
             onFileClick={handleFileClick}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragLeave={handleDragLeave}
+            onDragEnd={handleDragEnd}
+            dragOverUri={dragOverUri}
           />
         ))}
       </div>
@@ -282,4 +425,14 @@ function findNode(nodes: TreeNode[], uri: string): TreeNode | null {
     }
   }
   return null;
+}
+
+function isDescendantOf(nodes: TreeNode[], ancestorUri: string, targetUri: string): boolean {
+  const ancestor = findNode(nodes, ancestorUri);
+  if (!ancestor || !ancestor.children) return false;
+  for (const child of ancestor.children) {
+    if (child.entry.uri === targetUri) return true;
+    if (child.children && isDescendantOf([child], child.entry.uri, targetUri)) return true;
+  }
+  return false;
 }

@@ -175,6 +175,38 @@ export const gateApi = {
   },
 
   /**
+   * Move an entry from one directory to another via SPARQL UPDATE
+   */
+  async moveEntry(entryUri: string, fromDirUri: string, toDirUri: string): Promise<void> {
+    const sparqlUpdate = `
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      DELETE DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${fromDirUri}> posix:includes <${entryUri}> .
+        }
+      };
+      INSERT DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${toDirUri}> posix:includes <${entryUri}> .
+        }
+      }
+    `;
+
+    const response = await fetch(`${GATE_BASE_URL}/update`, {
+      method: 'POST',
+      body: sparqlUpdate,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/sparql-update',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to move entry: ${response.status} ${response.statusText}`);
+    }
+  },
+
+  /**
    * List filesystem entries that are direct targets of access policies.
    * These are the resources the current session has been granted access to,
    * and form the root entries of the file browser.
