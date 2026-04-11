@@ -25,6 +25,7 @@ const MobileToolbar = ({
   isLoading,
   ipfsImageFetchFn,
   fetchV1ImageFn,
+  isMarkdownMode,
 }: {
   editor: Editor | null;
   onError?: (errorString: string) => void;
@@ -37,6 +38,7 @@ const MobileToolbar = ({
     _data: IpfsImageFetchPayload,
   ) => Promise<{ url: string; file: File }>;
   fetchV1ImageFn?: (url: string) => Promise<ArrayBuffer | undefined>;
+  isMarkdownMode?: boolean;
 }) => {
   const { toolVisibility, setToolVisibility, bottomToolbar } = useEditorToolbar(
     {
@@ -45,6 +47,7 @@ const MobileToolbar = ({
       ipfsImageUploadFn,
       ipfsImageFetchFn,
       fetchV1ImageFn,
+      isMarkdownMode,
     },
   );
   const [url, setUrl] = useState('');

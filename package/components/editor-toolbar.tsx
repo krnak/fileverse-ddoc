@@ -52,6 +52,7 @@ const TiptapToolBar = ({
   isLoading,
   ipfsImageFetchFn,
   fetchV1ImageFn,
+  isMarkdownMode,
 }: {
   editor: Editor | null;
   onError?: (errorString: string) => void;
@@ -71,6 +72,7 @@ const TiptapToolBar = ({
   ipfsImageFetchFn?: (
     _data: IpfsImageFetchPayload,
   ) => Promise<{ url: string; file: File }>;
+  isMarkdownMode?: boolean;
 }) => {
   const {
     toolRef,
@@ -93,6 +95,7 @@ const TiptapToolBar = ({
     ipfsImageFetchFn,
     onDocxImport,
     fetchV1ImageFn,
+    isMarkdownMode,
   });
 
   const editorStates = useEditorStates(editor as Editor);
@@ -310,47 +313,51 @@ const TiptapToolBar = ({
 
           <div className="w-[1px] h-4 vertical-divider mx-1"></div>
 
-          {/* Font Family Dropdown */}
-          {isLoading
-            ? fadeInTransition(
-                <Skeleton className={`w-[96px] h-[36px] rounded-sm`} />,
-                'font-family-skeleton',
-              )
-            : slideUpTransition(
-                <DynamicDropdown
-                  key={IEditorTool.FONT_FAMILY}
-                  sideOffset={8}
-                  anchorTrigger={
-                    <button
-                      className="bg-transparent hover:!color-bg-default-hover rounded p-2 flex items-center justify-center gap-2 w-[85px]"
-                      onClick={() => setToolVisibility(IEditorTool.FONT_FAMILY)}
-                    >
-                      <span
-                        className="text-body-sm line-clamp-1"
-                        style={{
-                          fontFamily: activeFont?.value,
-                        }}
-                      >
-                        {activeFont?.title || 'Default'}
-                      </span>
-                      <LucideIcon
-                        name="ChevronDown"
-                        size="sm"
-                        className="min-w-fit"
-                      />
-                    </button>
-                  }
-                  content={
-                    <EditorFontFamily
-                      editor={editor as Editor}
-                      elementRef={toolRef}
-                      setToolVisibility={setToolVisibility}
-                    />
-                  }
-                />,
-                'font-dropdown-transiton',
-              )}
-          <div className="w-[1px] h-4 vertical-divider mx-1"></div>
+          {/* Font Family Dropdown - hidden in markdown mode */}
+          {!isMarkdownMode && (
+            <>
+              {isLoading
+                ? fadeInTransition(
+                    <Skeleton className={`w-[96px] h-[36px] rounded-sm`} />,
+                    'font-family-skeleton',
+                  )
+                : slideUpTransition(
+                    <DynamicDropdown
+                      key={IEditorTool.FONT_FAMILY}
+                      sideOffset={8}
+                      anchorTrigger={
+                        <button
+                          className="bg-transparent hover:!color-bg-default-hover rounded p-2 flex items-center justify-center gap-2 w-[85px]"
+                          onClick={() => setToolVisibility(IEditorTool.FONT_FAMILY)}
+                        >
+                          <span
+                            className="text-body-sm line-clamp-1"
+                            style={{
+                              fontFamily: activeFont?.value,
+                            }}
+                          >
+                            {activeFont?.title || 'Default'}
+                          </span>
+                          <LucideIcon
+                            name="ChevronDown"
+                            size="sm"
+                            className="min-w-fit"
+                          />
+                        </button>
+                      }
+                      content={
+                        <EditorFontFamily
+                          editor={editor as Editor}
+                          elementRef={toolRef}
+                          setToolVisibility={setToolVisibility}
+                        />
+                      }
+                    />,
+                    'font-dropdown-transiton',
+                  )}
+              <div className="w-[1px] h-4 vertical-divider mx-1"></div>
+            </>
+          )}
 
           {/* Heading Dropdown */}
           {isLoading
@@ -390,41 +397,45 @@ const TiptapToolBar = ({
                 'heading-dropdown',
               )}
           <div className="w-[1px] h-4 vertical-divider mx-1"></div>
-          {/* Text Size Dropdown */}
-          {isLoading
-            ? fadeInTransition(
-                <Skeleton className={`w-[112px] h-[36px] rounded-sm`} />,
-                'font-size-skeleton',
-              )
-            : slideUpTransition(
-                <DynamicDropdown
-                  key={IEditorTool.FONT_SIZE}
-                  sideOffset={8}
-                  anchorTrigger={
-                    <button
-                      className="bg-transparent hover:!color-bg-default-hover rounded gap-2 py-2 px-1 flex items-center justify-center w-[52px]"
-                      onClick={() => setToolVisibility(IEditorTool.FONT_SIZE)}
-                    >
-                      <span className="text-body-sm line-clamp-1">
-                        {getCurrentFontSize(editor, currentSize as string)}
-                      </span>
-                      <LucideIcon name="ChevronDown" size="sm" />
-                    </button>
-                  }
-                  content={
-                    <MemoizedFontSizePicker
-                      setVisibility={setToolVisibility}
-                      editor={editor as Editor}
-                      elementRef={toolRef}
-                      currentSize={currentSize}
-                      onSetFontSize={onSetFontSize}
-                    />
-                  }
-                />,
-                'font-size-dropdown',
-              )}
+          {/* Text Size Dropdown - hidden in markdown mode */}
+          {!isMarkdownMode && (
+            <>
+              {isLoading
+                ? fadeInTransition(
+                    <Skeleton className={`w-[112px] h-[36px] rounded-sm`} />,
+                    'font-size-skeleton',
+                  )
+                : slideUpTransition(
+                    <DynamicDropdown
+                      key={IEditorTool.FONT_SIZE}
+                      sideOffset={8}
+                      anchorTrigger={
+                        <button
+                          className="bg-transparent hover:!color-bg-default-hover rounded gap-2 py-2 px-1 flex items-center justify-center w-[52px]"
+                          onClick={() => setToolVisibility(IEditorTool.FONT_SIZE)}
+                        >
+                          <span className="text-body-sm line-clamp-1">
+                            {getCurrentFontSize(editor, currentSize as string)}
+                          </span>
+                          <LucideIcon name="ChevronDown" size="sm" />
+                        </button>
+                      }
+                      content={
+                        <MemoizedFontSizePicker
+                          setVisibility={setToolVisibility}
+                          editor={editor as Editor}
+                          elementRef={toolRef}
+                          currentSize={currentSize}
+                          onSetFontSize={onSetFontSize}
+                        />
+                      }
+                    />,
+                    'font-size-dropdown',
+                  )}
 
-          <div className="w-[1px] h-4 vertical-divider mx-1"></div>
+              <div className="w-[1px] h-4 vertical-divider mx-1"></div>
+            </>
+          )}
 
           {/* Toolbar Items */}
           <div className="flex gap-2 justify-center items-center">

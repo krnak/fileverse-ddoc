@@ -42,6 +42,7 @@ export type EditorBubbleMenuProps = Omit<BubbleMenuProps, 'children'> & {
   isConnected?: boolean;
   isCollabDocOwner?: boolean;
   enableCollaboration?: boolean;
+  isMarkdownMode?: boolean;
 };
 
 export interface NodeSelectorProps {

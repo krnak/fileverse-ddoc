@@ -15,6 +15,7 @@ export const getSuggestionItems = ({
   ipfsImageUploadFn,
   editor,
   enableCollaboration,
+  isMarkdownMode,
 }: {
   query: string;
   onError?: (errorString: string) => void;
@@ -22,6 +23,7 @@ export const getSuggestionItems = ({
   isConnected?: boolean;
   editor?: any;
   enableCollaboration?: boolean;
+  isMarkdownMode?: boolean;
 }) => {
   const modelContext = (window as any).__MODEL_CONTEXT__;
   const isAIAgentEnabled =
@@ -373,7 +375,16 @@ export const getSuggestionItems = ({
       },
     },
   ];
+  // Items that have no markdown equivalent
+  const MARKDOWN_HIDDEN_SLASH_ITEMS = new Set([
+    'AI Writer', 'Reminder', 'Callout', 'Page breaker',
+    'Video Embed', 'Twitter', '2 Columns', '3 Columns',
+  ]);
+
   return items.filter((item) => {
+    if (isMarkdownMode && MARKDOWN_HIDDEN_SLASH_ITEMS.has(item.title)) {
+      return false;
+    }
     if (item.title === 'AI Writer' && item.isDisabled) {
       return false;
     }

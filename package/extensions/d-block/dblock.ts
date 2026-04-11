@@ -60,6 +60,17 @@ export const DBlock = Node.create<DBlockOptions>({
     };
   },
 
+  addStorage() {
+    return {
+      markdown: {
+        serialize(state: any, node: any) {
+          state.renderContent(node);
+        },
+        parse: {},
+      },
+    };
+  },
+
   addAttributes() {
     return {
       isCorrupted: {

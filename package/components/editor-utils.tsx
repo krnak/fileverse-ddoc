@@ -344,6 +344,7 @@ export const useEditorToolbar = ({
   ipfsImageFetchFn,
   onDocxImport,
   fetchV1ImageFn,
+  isMarkdownMode,
 }: {
   editor: Editor | null;
   onError?: (errorString: string) => void;
@@ -358,6 +359,7 @@ export const useEditorToolbar = ({
   ) => Promise<{ url: string; file: File }>;
   onDocxImport?: () => void;
   fetchV1ImageFn?: (url: string) => Promise<ArrayBuffer | undefined>;
+  isMarkdownMode?: boolean;
 }) => {
   const {
     ref: toolRef,
@@ -1121,9 +1123,17 @@ export const useEditorToolbar = ({
       isActive: false,
     },
   ];
+  // In markdown mode, filter out toolbar items for non-markdown features
+  const MARKDOWN_HIDDEN_TOOLBAR_TITLES = new Set([
+    'Text Color', 'Highlight', 'Alignment', 'Line Height',
+  ]);
+  const filteredToolbar = isMarkdownMode
+    ? toolbar.filter(item => item === null || !MARKDOWN_HIDDEN_TOOLBAR_TITLES.has(item.title))
+    : toolbar;
+
   return {
     undoRedoTools,
-    toolbar,
+    toolbar: filteredToolbar,
     exportOptions,
     importOptions,
     bottomToolbar,

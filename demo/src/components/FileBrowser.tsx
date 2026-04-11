@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { LucideIcon } from '@fileverse/ui';
+import { LucideIcon, toast } from '@fileverse/ui';
 import { gateApi, FileSystemEntry } from '../storage/gate-api';
 import { useAuth } from './AuthOverlay';
 
@@ -13,6 +14,12 @@ interface TreeNode {
   isExpanded: boolean;
   isLoading: boolean;
   parentUri: string | null;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  node: TreeNode;
 }
 
 interface FileBrowserProps {
@@ -39,6 +46,7 @@ function TreeItem({
   depth,
   onToggle,
   onFileClick,
+  onContextMenu,
   onDragStart,
   onDragOver,
   onDrop,
@@ -50,6 +58,7 @@ function TreeItem({
   depth: number;
   onToggle: (uri: string) => void;
   onFileClick: (entry: FileSystemEntry) => void;
+  onContextMenu: (e: React.MouseEvent, node: TreeNode) => void;
   onDragStart: (e: React.DragEvent, node: TreeNode) => void;
   onDragOver: (e: React.DragEvent, node: TreeNode) => void;
   onDrop: (e: React.DragEvent, node: TreeNode) => void;
@@ -67,6 +76,7 @@ function TreeItem({
         className={`flex items-center gap-1.5 w-full px-2 py-1.5 text-sm rounded hover:color-bg-default-hover text-left color-text-default transition-colors ${isDragOver ? 'ring-2 ring-blue-400' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => (isDir ? onToggle(node.entry.uri) : onFileClick(node.entry))}
+        onContextMenu={(e) => onContextMenu(e, node)}
         draggable={canDrag}
         onDragStart={(e) => onDragStart(e, node)}
         onDragOver={(e) => onDragOver(e, node)}
@@ -103,6 +113,7 @@ function TreeItem({
               depth={depth + 1}
               onToggle={onToggle}
               onFileClick={onFileClick}
+              onContextMenu={onContextMenu}
               onDragStart={onDragStart}
               onDragOver={onDragOver}
               onDrop={onDrop}
@@ -130,6 +141,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const [rootLoading, setRootLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOverUri, setDragOverUri] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [panelWidth, setPanelWidth] = useState(() => {
     const saved = localStorage.getItem('file_browser_width');
     return saved ? Number(saved) : 288;
@@ -215,7 +227,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
   const handleFileClick = useCallback(
     (entry: FileSystemEntry) => {
       const uuid = entry.uri.replace('urn:uuid:', '');
-      if (entry.mimeType === 'application/json') {
+      if (entry.mimeType === 'application/json' || entry.mimeType === 'text/markdown' || entry.label.endsWith('.md')) {
         navigate(`/document/${uuid}`);
       } else {
         window.open(`${GATE_BASE_URL}/res/${uuid}`, '_blank');
@@ -350,6 +362,117 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
     document.addEventListener('mouseup', onMouseUp);
   }, []);
 
+  const handleContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, node });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const handleRemove = useCallback(async (node: TreeNode) => {
+    closeContextMenu();
+    if (!node.parentUri) return;
+
+    const parentUri = node.parentUri;
+
+    // Optimistic: remove from tree
+    setTree((prev) =>
+      updateNode(prev, parentUri, (n) => ({
+        ...n,
+        children: n.children ? n.children.filter((c) => c.entry.uri !== node.entry.uri) : null,
+      })),
+    );
+
+    try {
+      await gateApi.removeFromDirectory(node.entry.uri, parentUri);
+    } catch (err) {
+      console.error('Failed to remove entry:', err);
+      // Rollback by re-fetching directory
+      try {
+        const entries = await gateApi.listDirectory(parentUri);
+        setTree((prev) =>
+          updateNode(prev, parentUri, (n) => ({
+            ...n,
+            children: entries.map((entry) => ({
+              entry,
+              children: null,
+              isExpanded: false,
+              isLoading: false,
+              parentUri,
+            })),
+          })),
+        );
+      } catch {
+        loadRoot();
+      }
+      toast({ title: 'Failed to remove entry', variant: 'danger', hasIcon: true });
+    }
+  }, [closeContextMenu, loadRoot]);
+
+  const DEFAULT_DOCUMENT = {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [] }],
+  };
+
+  const handleNewFile = useCallback(async (
+    dirNode: TreeNode,
+    fileName: string,
+    content: string | object,
+    contentType: string,
+  ) => {
+    closeContextMenu();
+
+    try {
+      const uuid = await gateApi.createFileInDirectory(
+        dirNode.entry.uri,
+        content,
+        fileName,
+        contentType,
+      );
+
+      const newFileNode: TreeNode = {
+        entry: {
+          uri: `urn:uuid:${uuid}`,
+          label: fileName,
+          type: 'file',
+          mimeType: contentType,
+        },
+        children: null,
+        isExpanded: false,
+        isLoading: false,
+        parentUri: dirNode.entry.uri,
+      };
+
+      setTree((prev) =>
+        updateNode(prev, dirNode.entry.uri, (n) => ({
+          ...n,
+          isExpanded: true,
+          children: n.children ? [...n.children, newFileNode] : [newFileNode],
+        })),
+      );
+
+      navigate(`/document/${uuid}`);
+    } catch (err) {
+      console.error('Failed to create file:', err);
+      toast({ title: 'Failed to create file', variant: 'danger', hasIcon: true });
+    }
+  }, [closeContextMenu, navigate]);
+
+  // Close context menu on scroll/resize
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [contextMenu]);
+
   return (
     <div
       ref={panelRef}
@@ -420,6 +543,7 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
             depth={0}
             onToggle={handleToggle}
             onFileClick={handleFileClick}
+            onContextMenu={handleContextMenu}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
@@ -435,7 +559,108 @@ export function FileBrowser({ isOpen, onClose }: FileBrowserProps) {
         className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:color-bg-default-selected transition-colors"
         onMouseDown={handleResizeMouseDown}
       />
+
+      {contextMenu && (contextMenu.node.entry.type === 'directory' || contextMenu.node.parentUri !== null) && createPortal(
+        <ContextMenuPopup
+          state={contextMenu}
+          onClose={closeContextMenu}
+          onRemove={handleRemove}
+          onNewDdoc={(node) => handleNewFile(node, 'Untitled.json', DEFAULT_DOCUMENT, 'application/json')}
+          onNewMarkdown={(node) => handleNewFile(node, 'Untitled.md', '', 'text/markdown')}
+        />,
+        document.body,
+      )}
     </div>
+  );
+}
+
+function ContextMenuPopup({
+  state,
+  onClose,
+  onRemove,
+  onNewDdoc,
+  onNewMarkdown,
+}: {
+  state: ContextMenuState;
+  onClose: () => void;
+  onRemove: (node: TreeNode) => void;
+  onNewDdoc: (node: TreeNode) => void;
+  onNewMarkdown: (node: TreeNode) => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { node, x, y } = state;
+  const isDir = node.entry.type === 'directory';
+  const canRemove = node.parentUri !== null;
+
+  // Clamp position to viewport
+  const [pos, setPos] = useState({ x, y });
+  useEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      x: x + rect.width > window.innerWidth ? window.innerWidth - rect.width - 4 : x,
+      y: y + rect.height > window.innerHeight ? window.innerHeight - rect.height - 4 : y,
+    });
+  }, [x, y]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50"
+        onClick={onClose}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      {/* Menu */}
+      <div
+        ref={menuRef}
+        className="fixed z-50 min-w-[180px] py-1 rounded-lg border color-border-default color-bg-secondary shadow-lg"
+        style={{ left: pos.x, top: pos.y }}
+      >
+        {isDir && (
+          <>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm color-text-default hover:color-bg-default-hover text-left"
+              onClick={() => onNewDdoc(node)}
+            >
+              <LucideIcon name="FilePlus" size="sm" />
+              New DDoc
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm color-text-default hover:color-bg-default-hover text-left"
+              onClick={() => onNewMarkdown(node)}
+            >
+              <LucideIcon name="FileCode" size="sm" />
+              New Markdown
+            </button>
+          </>
+        )}
+        {isDir && canRemove && (
+          <div className="my-1 border-t color-border-default" />
+        )}
+        {canRemove && (
+          <button
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-red-500 hover:color-bg-default-hover text-left"
+            onClick={() => onRemove(node)}
+          >
+            <LucideIcon name="Trash2" size="sm" />
+            Remove
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 

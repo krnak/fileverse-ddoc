@@ -131,6 +131,7 @@ const DdocEditor = forwardRef(
       collabConfig,
       // Document styling object
       documentStyling,
+      isMarkdownMode,
       ...rest
     }: DdocProps,
     ref,
@@ -311,8 +312,12 @@ const DdocEditor = forwardRef(
       collaborationKeyPair,
 
       collabConfig,
+      isMarkdownMode,
       ...rest,
     });
+
+    // In markdown mode, inline comments are not supported
+    const effectiveDisableInlineComment = disableInlineComment || isMarkdownMode;
 
     useImperativeHandle(
       ref,
@@ -579,6 +584,7 @@ const DdocEditor = forwardRef(
                     isLoading={!editor || isContentLoading}
                     ipfsImageFetchFn={ipfsImageFetchFn}
                     fetchV1ImageFn={fetchV1ImageFn}
+                    isMarkdownMode={isMarkdownMode}
                   />
                 </div>
               </div>
@@ -706,8 +712,9 @@ const DdocEditor = forwardRef(
                         //@ts-expect-error error mismatch here
                         onError={onError}
                         zoomLevel={zoomLevel}
-                        disableInlineComment={disableInlineComment || false}
+                        disableInlineComment={effectiveDisableInlineComment || false}
                         setIsCommentSectionOpen={setIsCommentSectionOpen}
+                        isMarkdownMode={isMarkdownMode}
                         inlineCommentData={inlineCommentData}
                         setInlineCommentData={setInlineCommentData}
                         isPreviewMode={isPreviewMode}
@@ -833,7 +840,7 @@ const DdocEditor = forwardRef(
                                 activeModel !== undefined &&
                                   isAIAgentEnabled &&
                                   'has-available-models',
-                                disableInlineComment && 'hide-inline-comments',
+                                effectiveDisableInlineComment && 'hide-inline-comments',
                               )}
                               {...(getCanvasStyle() && {
                                 style: getCanvasStyle(),
@@ -879,6 +886,7 @@ const DdocEditor = forwardRef(
                   isLoading={!editor || isContentLoading}
                   ipfsImageFetchFn={ipfsImageFetchFn}
                   fetchV1ImageFn={fetchV1ImageFn}
+                  isMarkdownMode={isMarkdownMode}
                 />
               </div>
             )}
@@ -900,7 +908,7 @@ const DdocEditor = forwardRef(
                   activeCommentId={activeCommentId}
                   commentDrawerOpen={commentDrawerOpen as boolean}
                   isCollabDocumentPublished={isCollabDocumentPublished}
-                  disableInlineComment={disableInlineComment}
+                  disableInlineComment={effectiveDisableInlineComment}
                 />
               )}
             </div>

@@ -48,6 +48,7 @@ export const EditorBubbleMenu = (props: EditorBubbleMenuProps) => {
     isCollabDocOwner,
     enableCollaboration,
     fetchV1ImageFn,
+    isMarkdownMode,
   } = props;
   const editorStates = useEditorStates(editor as Editor);
   const currentSize = editor ? editorStates.currentSize : undefined;
@@ -341,57 +342,61 @@ export const EditorBubbleMenu = (props: EditorBubbleMenuProps) => {
 
               <div className="w-[1px] h-4 vertical-divider"></div>
 
-              <DynamicDropdown
-                key={IEditorTool.FONT_SIZE}
-                sideOffset={8}
-                anchorTrigger={
-                  <button
-                    className="bg-transparent hover:!color-bg-default-hover rounded gap-2 py-2 px-1 flex items-center justify-center w-fit max-w-14 min-w-14"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setToolVisibility(IEditorTool.FONT_SIZE)}
-                  >
-                    <span className="text-body-sm line-clamp-1">
-                      {getCurrentFontSize(
-                        editor ?? null,
-                        currentSize as string,
-                      )}
-                    </span>
-                    <LucideIcon name="ChevronDown" size="sm" />
-                  </button>
-                }
-                content={
-                  <MemoizedFontSizePicker
-                    setVisibility={setToolVisibility}
-                    editor={editor as Editor}
-                    elementRef={toolRef}
-                    currentSize={currentSize}
-                    onSetFontSize={onSetFontSize}
+              {!isMarkdownMode && (
+                <>
+                  <DynamicDropdown
+                    key={IEditorTool.FONT_SIZE}
+                    sideOffset={8}
+                    anchorTrigger={
+                      <button
+                        className="bg-transparent hover:!color-bg-default-hover rounded gap-2 py-2 px-1 flex items-center justify-center w-fit max-w-14 min-w-14"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setToolVisibility(IEditorTool.FONT_SIZE)}
+                      >
+                        <span className="text-body-sm line-clamp-1">
+                          {getCurrentFontSize(
+                            editor ?? null,
+                            currentSize as string,
+                          )}
+                        </span>
+                        <LucideIcon name="ChevronDown" size="sm" />
+                      </button>
+                    }
+                    content={
+                      <MemoizedFontSizePicker
+                        setVisibility={setToolVisibility}
+                        editor={editor as Editor}
+                        elementRef={toolRef}
+                        currentSize={currentSize}
+                        onSetFontSize={onSetFontSize}
+                      />
+                    }
                   />
-                }
-              />
 
-              <DynamicDropdown
-                key={IEditorTool.LINE_HEIGHT}
-                sideOffset={15}
-                anchorTrigger={
-                  <ToolbarButton
-                    icon="LineHeight"
-                    size="sm"
-                    isActive={toolVisibility === IEditorTool.LINE_HEIGHT}
+                  <DynamicDropdown
+                    key={IEditorTool.LINE_HEIGHT}
+                    sideOffset={15}
+                    anchorTrigger={
+                      <ToolbarButton
+                        icon="LineHeight"
+                        size="sm"
+                        isActive={toolVisibility === IEditorTool.LINE_HEIGHT}
+                      />
+                    }
+                    content={
+                      <MemoizedLineHeightPicker
+                        setVisibility={setToolVisibility}
+                        editor={editor as Editor}
+                        elementRef={toolRef}
+                        currentLineHeight={currentLineHeight}
+                        onSetLineHeight={onSetLineHeight}
+                      />
+                    }
                   />
-                }
-                content={
-                  <MemoizedLineHeightPicker
-                    setVisibility={setToolVisibility}
-                    editor={editor as Editor}
-                    elementRef={toolRef}
-                    currentLineHeight={currentLineHeight}
-                    onSetLineHeight={onSetLineHeight}
-                  />
-                }
-              />
 
-              <div className="w-[1px] h-4 vertical-divider"></div>
+                  <div className="w-[1px] h-4 vertical-divider"></div>
+                </>
+              )}
 
               {items.map((item, index) => {
                 if (
@@ -417,6 +422,7 @@ export const EditorBubbleMenu = (props: EditorBubbleMenuProps) => {
                 }
 
                 if (item.name === 'Alignment') {
+                  if (isMarkdownMode) return null;
                   return (
                     <React.Fragment key={index}>
                       <DynamicDropdown
@@ -542,6 +548,7 @@ export const EditorBubbleMenu = (props: EditorBubbleMenuProps) => {
                 }
 
                 if (item.name === 'Reminder') {
+                  if (isMarkdownMode) return null;
                   return (
                     isConnected &&
                     isCollabDocOwner && (

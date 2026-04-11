@@ -33,7 +33,13 @@ import { useSyncMachine } from './sync-local/useSyncMachine';
 // import { type TableOfContentDataItem } from '@tiptap/extension-table-of-contents';
 import { ToCItemType } from './components/toc/types';
 import { TWITTER_REGEX } from './constants/twitter';
+import { Document as TiptapDocument } from '@tiptap/extension-document';
 // import { SyncCursor } from './extensions/sync-cursor';
+
+// Document extension for markdown mode — only allows dBlock (no columns/pageBreak)
+const MarkdownDocument = TiptapDocument.extend({
+  content: 'dBlock+',
+});
 
 const usercolors = [
   '#30bced',
@@ -80,6 +86,7 @@ export const useDdocEditor = ({
   isAIAgentEnabled,
   collabConfig,
   onIndexedDbError,
+  isMarkdownMode,
   ...rest
 }: Partial<DdocProps>) => {
   const [isContentLoading, setIsContentLoading] = useState(true);
@@ -134,44 +141,65 @@ export const useDdocEditor = ({
   // V2 - comment
   const [tocItems, setTocItems] = useState<ToCItemType[]>([]);
   const hasAvailableModels = activeModel !== undefined && isAIAgentEnabled;
-  const [extensions, setExtensions] = useState<AnyExtension[]>([
-    ...(defaultExtensions({
-      onError: (error: string) => onError?.(error),
-      ipfsImageUploadFn,
-      metadataProxyUrl,
-      onCopyHeadingLink,
-      ipfsImageFetchFn,
-      fetchV1ImageFn,
-      onTocUpdate(data, isCreate) {
-        // Only update state when necessary
-        if (isCreate) {
-          // Initial TOC creation
-          setTocItems(data);
-        } else {
-          // Debounce subsequent updates using ref
-          if (tocUpdateTimeoutRef.current) {
-            clearTimeout(tocUpdateTimeoutRef.current);
-          }
 
-          // Use requestAnimationFrame for smoother updates
-          requestAnimationFrame(() => {
-            tocUpdateTimeoutRef.current = window.setTimeout(() => {
-              setTocItems(data);
-              tocUpdateTimeoutRef.current = null;
-            }, 100); // Reduced debounce time
-          });
+  // Extensions that have no markdown equivalent and should be excluded in markdown mode
+  const MARKDOWN_EXCLUDED_EXTENSIONS = new Set([
+    'fontFamily', 'fontSize', 'lineHeight', 'textAlign',
+    'color', 'highlight', 'iframe', 'embeddedTweet',
+    'columns', 'column', 'columnBlock', 'callout',
+    'pageBreak', 'actionButton', 'aiWriter', 'aiAutocomplete',
+  ]);
+
+  const baseExtensions = defaultExtensions({
+    onError: (error: string) => onError?.(error),
+    ipfsImageUploadFn,
+    metadataProxyUrl,
+    onCopyHeadingLink,
+    ipfsImageFetchFn,
+    fetchV1ImageFn,
+    onTocUpdate(data, isCreate) {
+      // Only update state when necessary
+      if (isCreate) {
+        // Initial TOC creation
+        setTocItems(data);
+      } else {
+        // Debounce subsequent updates using ref
+        if (tocUpdateTimeoutRef.current) {
+          clearTimeout(tocUpdateTimeoutRef.current);
         }
-      },
-    }) as AnyExtension[]),
+
+        // Use requestAnimationFrame for smoother updates
+        requestAnimationFrame(() => {
+          tocUpdateTimeoutRef.current = window.setTimeout(() => {
+            setTocItems(data);
+            tocUpdateTimeoutRef.current = null;
+          }, 100); // Reduced debounce time
+        });
+      }
+    },
+  }) as AnyExtension[];
+
+  const filteredBaseExtensions = isMarkdownMode
+    ? [
+        ...baseExtensions.filter(ext =>
+          !MARKDOWN_EXCLUDED_EXTENSIONS.has(ext.name) && ext.name !== 'doc'
+        ),
+        MarkdownDocument,
+      ]
+    : baseExtensions;
+
+  const [extensions, setExtensions] = useState<AnyExtension[]>([
+    ...filteredBaseExtensions,
     SlashCommand(
       (error: string) => onError?.(error),
       ipfsImageUploadFn,
       isConnected,
       enableCollaboration,
+      isMarkdownMode,
     ),
     customTextInputRules,
-    PageBreak,
-    Comment.configure({
+    ...(isMarkdownMode ? [] : [PageBreak]),
+    ...(isMarkdownMode ? [] : [Comment.configure({
       HTMLAttributes: {
         class: 'inline-comment',
       },
@@ -179,7 +207,7 @@ export const useDdocEditor = ({
         setActiveCommentId(commentId);
         if (commentId) setTimeout(() => focusCommentWithActiveId(commentId));
       },
-    }),
+    })]),
     Collaboration.configure({
       document: ydoc,
     }),
@@ -204,6 +232,7 @@ export const useDdocEditor = ({
           ipfsImageUploadFn,
           isConnected,
           enableCollaboration,
+          isMarkdownMode,
         ),
       ]);
     }
@@ -346,7 +375,7 @@ export const useDdocEditor = ({
             }
           },
           blur: () => {
-            editor?.commands.unsetCommentActive();
+            editor?.commands.unsetCommentActive?.();
           },
         },
         handleClick: (view, pos, event) => {
@@ -439,6 +468,7 @@ export const useDdocEditor = ({
           ipfsImageUploadFn,
           isConnected,
           enableCollaboration,
+          isMarkdownMode,
         ),
       ]);
     }
@@ -702,25 +732,30 @@ export const useDdocEditor = ({
       setIsContentLoading(true);
       queueMicrotask(() => {
         if (initialContent !== '') {
-          const isYjsEncoded = isContentYjsEncoded(initialContent as string);
-          if (isYjsEncoded) {
-            if (Array.isArray(initialContent)) {
-              mergeAndApplyUpdate(initialContent);
+          if (isMarkdownMode && typeof initialContent === 'string') {
+            // Markdown mode: tiptap-markdown extension parses the markdown string
+            editor.commands.setContent(initialContent);
+          } else {
+            const isYjsEncoded = isContentYjsEncoded(initialContent as string);
+            if (isYjsEncoded) {
+              if (Array.isArray(initialContent)) {
+                mergeAndApplyUpdate(initialContent);
+              } else {
+                Y.applyUpdate(
+                  ydoc,
+                  toUint8Array(initialContent as string),
+                  'self',
+                );
+              }
             } else {
-              Y.applyUpdate(
-                ydoc,
-                toUint8Array(initialContent as string),
-                'self',
+              editor.commands.setContent(
+                sanitizeContent({
+                  data: initialContent as JSONContent,
+                  ignoreCorruptedData,
+                  onInvalidContentError,
+                }),
               );
             }
-          } else {
-            editor.commands.setContent(
-              sanitizeContent({
-                data: initialContent as JSONContent,
-                ignoreCorruptedData,
-                onInvalidContentError,
-              }),
-            );
           }
         }
 
@@ -817,7 +852,23 @@ export const useDdocEditor = ({
     editor?.storage.characterCount.words(),
   ]);
 
+  // Markdown mode: serialize editor content as markdown on every update
   useEffect(() => {
+    if (!isMarkdownMode || !editor) return;
+    const handler = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markdown = (editor.storage as any).markdown.getMarkdown();
+      onChange?.(markdown, '');
+    };
+    editor.on('update', handler);
+    return () => {
+      editor.off('update', handler);
+    };
+  }, [editor, isMarkdownMode, onChange]);
+
+  // Non-markdown mode: serialize as Yjs-encoded state on ydoc updates
+  useEffect(() => {
+    if (isMarkdownMode) return;
     const handler = (update: Uint8Array, origin: any) => {
       if (origin === 'self') return;
       onChange?.(
@@ -831,7 +882,7 @@ export const useDdocEditor = ({
     return () => {
       ydoc?.off('update', handler);
     };
-  }, [ydoc]);
+  }, [ydoc, isMarkdownMode]);
 
   useEffect(() => {
     return () => {

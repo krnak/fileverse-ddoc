@@ -126,6 +126,53 @@ export const gateApi = {
   },
 
   /**
+   * Load raw text content (e.g. markdown) by UUID
+   */
+  async loadRaw(uuid: string): Promise<string | null> {
+    try {
+      const response = await fetch(`${GATE_BASE_URL}/res/${uuid}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error(`Load failed: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.text();
+    } catch (e) {
+      console.error('Failed to load raw document:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Save raw text content (e.g. markdown) by UUID
+   */
+  async saveRaw(uuid: string, content: string, contentType = 'text/markdown'): Promise<boolean> {
+    try {
+      const response = await fetch(`${GATE_BASE_URL}/res/${uuid}`, {
+        method: 'PUT',
+        body: content,
+        credentials: 'include',
+        headers: {
+          'Content-Type': contentType,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Save failed: ${response.status} ${response.statusText}`);
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Failed to save raw document:', e);
+      return false;
+    }
+  },
+
+  /**
    * Save/update document content and comments by UUID
    */
   async save(uuid: string, content: JSONContent, comments: IComment[]): Promise<boolean> {
@@ -252,6 +299,28 @@ export const gateApi = {
   },
 
   /**
+   * Get the dc:format (MIME type) of a resource by UUID
+   */
+  async getMimeType(uuid: string): Promise<string | null> {
+    const query = `
+      PREFIX dc: <http://purl.org/dc/terms/>
+      SELECT ?mimeType
+      FROM <http://liqk.org/graph/filesystem>
+      WHERE {
+        <urn:uuid:${uuid}> dc:format ?mimeType .
+      }
+      LIMIT 1
+    `;
+
+    try {
+      const bindings = await this.sparqlQuery(query);
+      return bindings.length > 0 ? bindings[0].mimeType.value : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Update the rdfs:label of a resource
    */
   async updateLabel(uri: string, oldLabel: string, newLabel: string): Promise<void> {
@@ -335,6 +404,102 @@ export const gateApi = {
       mimeType: b.mimeType?.value,
       size: b.size?.value ? Number(b.size.value) : undefined,
     }));
+  },
+
+  /**
+   * Remove an entry from a directory by deleting the containment triple.
+   * Does not delete the underlying resource.
+   */
+  async removeFromDirectory(entryUri: string, directoryUri: string): Promise<void> {
+    const sparqlUpdate = `
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      DELETE DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${directoryUri}> posix:includes <${entryUri}> .
+        }
+      }
+    `;
+
+    const response = await fetch(`${GATE_BASE_URL}/update`, {
+      method: 'POST',
+      body: sparqlUpdate,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/sparql-update',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to remove entry: ${response.status} ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Create a file in a specific directory.
+   * Uploads the file content, then adds containment + metadata via SPARQL.
+   */
+  async createFileInDirectory(
+    directoryUri: string,
+    content: string | object,
+    fileName: string,
+    contentType: string,
+  ): Promise<string> {
+    const body = typeof content === 'object' ? JSON.stringify(content) : content;
+    const blob = new Blob([body], { type: contentType });
+    const file = new File([blob], fileName, { type: contentType });
+
+    const formData = new FormData();
+    formData.append('files', file);
+
+    const response = await fetch(`${GATE_BASE_URL}/res`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: UploadResponse = await response.json();
+    if (!data.success || !data.files.length) {
+      throw new Error('Upload failed: No file returned');
+    }
+
+    const uuid = data.files[0].uuid;
+
+    // Add containment + metadata in one SPARQL update
+    const sparqlUpdate = `
+      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+      PREFIX dc: <http://purl.org/dc/terms/>
+      PREFIX posix: <http://www.w3.org/ns/posix/stat#>
+      INSERT DATA {
+        GRAPH <http://liqk.org/graph/filesystem> {
+          <${directoryUri}> posix:includes <urn:uuid:${uuid}> .
+          <urn:uuid:${uuid}> rdfs:label "${fileName}" .
+          <urn:uuid:${uuid}> dc:format "${contentType}" .
+          <urn:uuid:${uuid}> a posix:File .
+        }
+      }
+    `;
+
+    const updateResponse = await fetch(`${GATE_BASE_URL}/update`, {
+      method: 'POST',
+      body: sparqlUpdate,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/sparql-update',
+      },
+    });
+
+    if (!updateResponse.ok) {
+      throw new Error(`Failed to set file metadata: ${updateResponse.status} ${updateResponse.statusText}`);
+    }
+
+    return uuid;
   },
 
   /**

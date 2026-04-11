@@ -193,6 +193,13 @@ export interface DdocProps extends CommentAccountProps {
    * @description Called when the IndexedDB persistence provider fails to initialize (e.g., private browsing, quota exceeded, corrupted DB). The editor will continue to function without local persistence.
    */
   onIndexedDbError?: (error: Error) => void;
+  /**
+   * When true, the editor operates in markdown mode:
+   * - initialContent is treated as a markdown string
+   * - onChange emits markdown string instead of Yjs/JSON
+   * - Non-markdown formatting features are disabled in toolbar, bubble menu, and slash commands
+   */
+  isMarkdownMode?: boolean;
 }
 
 export interface IEditorSelectionData {

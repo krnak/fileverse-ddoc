@@ -45,10 +45,10 @@ export const CommentBubbleCard = ({
 
         if (shouldShow) {
           const commentId = editor.getAttributes('comment')?.commentId;
-          editor.commands.setCommentActive(commentId);
+          editor.commands.setCommentActive?.(commentId);
         } else {
           // Unset active state when bubble menu should hide
-          editor.commands.unsetCommentActive();
+          editor.commands.unsetCommentActive?.();
         }
 
         return shouldShow;
@@ -77,7 +77,7 @@ export const CommentBubbleCard = ({
         },
         onHide: () => {
           // Additional safety to ensure active state is removed when menu hides
-          editor.commands.unsetCommentActive();
+          editor.commands.unsetCommentActive?.();
         },
       }}
       editor={editor}

@@ -8,7 +8,6 @@ import {
   IconButton,
   LucideIcon,
   toast,
-  Toaster,
   TagType,
   DynamicDropdown,
   ThemeToggle,
@@ -34,7 +33,7 @@ function App() {
   const [title, setTitle] = useState('Untitled');
 
   // Document persistence state
-  const [initialContent, setInitialContent] = useState<JSONContent | null>(null);
+  const [initialContent, setInitialContent] = useState<JSONContent | string | null>(null);
   const [isDocumentLoading, setIsDocumentLoading] = useState(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const commentsRef = useRef<IComment[]>([]);
@@ -65,6 +64,7 @@ function App() {
   const searchParams = new URLSearchParams(window.location.search);
   const paramCollaborationId = searchParams.get('collaborationId');
   const paramKey = getKeyFromURLParams(searchParams);
+  const [isMarkdownMode, setIsMarkdownMode] = useState(false);
   const [collabConfig, setCollabConf] = useState<
     ICollaborationConfig | undefined
   >(undefined);
@@ -185,17 +185,32 @@ function App() {
     const loadDocument = async () => {
       setIsDocumentLoading(true);
       try {
-        const [data, label] = await Promise.all([
-          gateApi.load(uuid),
+        // 1. Fetch metadata first (label + mimeType in parallel)
+        const [label, mimeType] = await Promise.all([
           gateApi.getLabel(`urn:uuid:${uuid}`),
+          gateApi.getMimeType(uuid),
         ]);
-        if (data) {
-          setInitialContent(data.content);
-          setInitialComment(data.comments || []);
-        }
+
         if (label) {
           setTitle(label);
           savedLabelRef.current = label;
+        }
+
+        const markdownMode = mimeType === 'text/markdown';
+        setIsMarkdownMode(markdownMode);
+
+        // 2. Load content based on detected type
+        if (markdownMode) {
+          const rawContent = await gateApi.loadRaw(uuid);
+          if (rawContent !== null) {
+            setInitialContent(rawContent);
+          }
+        } else {
+          const data = await gateApi.load(uuid);
+          if (data) {
+            setInitialContent(data.content);
+            setInitialComment(data.comments || []);
+          }
         }
       } catch (e) {
         console.error('Failed to load document:', e);
@@ -226,8 +241,14 @@ function App() {
       const editor = editorRef.current?.getEditor();
       if (!editor) return;
 
-      const content = editor.getJSON();
-      const success = await gateApi.save(uuid, content, commentsRef.current);
+      let success: boolean;
+      if (isMarkdownMode) {
+        const markdown = editor.storage.markdown.getMarkdown();
+        success = await gateApi.saveRaw(uuid, markdown);
+      } else {
+        const content = editor.getJSON();
+        success = await gateApi.save(uuid, content, commentsRef.current);
+      }
       if (success) {
         console.log('Document saved');
       } else {
@@ -238,7 +259,7 @@ function App() {
         });
       }
     }, 1000);
-  }, [uuid]);
+  }, [uuid, isMarkdownMode]);
 
   // Trigger save when comments change (after initial load)
   const isInitialCommentsLoad = useRef(true);
@@ -634,10 +655,7 @@ function App() {
         documentStyling={documentStyling}
         initialContent={initialContent}
         onChange={handleDocumentChange}
-      />
-      <Toaster
-        position={!isMobile ? 'bottom-right' : 'center-top'}
-        duration={3000}
+        isMarkdownMode={isMarkdownMode}
       />
     </div>
   );
